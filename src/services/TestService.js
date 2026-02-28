@@ -4,8 +4,9 @@ const PATH_TEST = "/exam-result";
 const postTest = async (id, body) => {
   return await post(PATH_TEST + `/submit-test/${id}`, body);
 };
-const getResultById = async (id) => {
-  return await get(PATH_TEST + `/${id}`);
+const getResultById = async (examId, resultId) => {
+  // Route: GET /exam-result/:examId?resultId=:resultId
+  return await get(PATH_TEST + `/${examId}${resultId ? `?resultId=${resultId}` : ""}`);
 };
 const getResultAll = async (id) => {
   return await get(PATH_TEST + `?examId=${id}`);

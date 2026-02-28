@@ -7,8 +7,6 @@ import {
   X,
   Clock,
   ListChecks,
-  ChevronLeft,
-  ChevronRight,
   CheckCircle2,
 } from "lucide-react";
 import { getExamDetail } from "../../../services/ExamService";
@@ -23,10 +21,8 @@ import Countdown from "./Countdown";
 import ExamNumber from "./ExamNumber";
 import MathRenderer from "../../../common/MathRenderer";
 import ConfirmModal from "../../ConfirmModal";
-import { LogOut } from "lucide-react";
 
 const STORAGE_KEY = "exam-answers";
-const CURRENT_QUESTION_KEY = "current-question";
 
 const ExamTestPage = () => {
   const { id } = useParams();
@@ -35,7 +31,6 @@ const ExamTestPage = () => {
   const [examData, setExamData] = useState(null);
 
   // States specific to test taking
-  const [currentQuestion, setCurrentQuestion] = useState();
   const [answers, setAnswers] = useState({});
   const [isOpen, setIsOpen] = useState(false); // Sidebar state for mobile
 
@@ -43,6 +38,9 @@ const ExamTestPage = () => {
 
   const [showExitModal, setShowExitModal] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // current section being shown: READING / LISTENING / WRITING
+  const [currentSection, setCurrentSection] = useState("READING");
 
   const [searchParams] = useSearchParams();
   const selectedSectionsParam = searchParams.get("sections");
@@ -78,7 +76,7 @@ const ExamTestPage = () => {
     handleFetch();
   }, [id]);
 
-  // Initialize Exam Session if not present
+  // Initialize Exam Session and section state
   useEffect(() => {
     if (examData) {
       const existingSession = sessionStorage.getItem("exam");
@@ -93,21 +91,19 @@ const ExamTestPage = () => {
         );
       }
 
-      // Initialize First Question if not set
-      const savedQuestion = sessionStorage.getItem(CURRENT_QUESTION_KEY);
-      if (!savedQuestion) {
-        const firstNonMQQuestion = examData?.questions?.find(
-          (q) => q.type !== "MQ",
-        );
-        if (firstNonMQQuestion) {
-          setCurrentQuestion(firstNonMQQuestion.question);
-          sessionStorage.setItem(
-            CURRENT_QUESTION_KEY,
-            firstNonMQQuestion.question,
-          );
-        }
+      // if URL param requests specific sections, pick first one as current
+      if (selectedSectionsParam) {
+        const arr = selectedSectionsParam.split(",");
+        if (arr.length) setCurrentSection(arr[0]);
       } else {
-        setCurrentQuestion(savedQuestion);
+        // choose first section that actually has questions — LISTENING first
+        const secs = ['LISTENING', 'READING', 'WRITING'];
+        for (let s of secs) {
+          if (examData.questions?.some(q => (q.section || 'READING') === s)) {
+            setCurrentSection(s);
+            break;
+          }
+        }
       }
     }
   }, [examData]);
@@ -118,24 +114,43 @@ const ExamTestPage = () => {
     setAnswers(savedAnswers ? JSON.parse(savedAnswers) : {});
   }, [id]);
 
-  const questionList = useMemo(() => {
+  const sections = useMemo(() => {
+    if (!examData) return { READING: [], LISTENING: [], WRITING: [] };
+    const grouped = { READING: [], LISTENING: [], WRITING: [] };
+    examData.questions.forEach((q) => {
+      const sec = q.section || "READING";
+      if (!grouped[sec]) grouped[sec] = [];
+      grouped[sec].push(q);
+    });
+    return grouped;
+  }, [examData]);
+
+  // list of questions for the currently selected section (display area)
+  const sectionQuestionList = useMemo(() => {
+    return sections[currentSection] || [];
+  }, [sections, currentSection]);
+
+  // complete flattened list in original order
+  const allQuestions = useMemo(() => {
     if (!examData) return [];
-    return examData?.questions.filter((q) => q.type !== "MQ") || [];
+    return examData.questions.filter((q) => q.type !== "MQ");
   }, [examData]);
 
   const handleSelectQuestion = (index) => {
-    const nextQuestion = questionList?.[index]?.question;
-    sessionStorage.setItem(CURRENT_QUESTION_KEY, nextQuestion);
-    setCurrentQuestion(nextQuestion);
+    const q = allQuestions[index];
+    if (q) {
+      const el = document.getElementById(q.question);
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    }
     if (window.innerWidth < 1024) {
       setIsOpen(false);
     }
   };
 
-  // Handle Answer Change
-  const handleAnswerChange = (value) => {
+  // Handle Answer Change for a given question key
+  const handleAnswerChange = (questionKey, value) => {
     setAnswers((prev) => {
-      const newAnswers = { ...prev, [currentQuestion]: value };
+      const newAnswers = { ...prev, [questionKey]: value };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newAnswers));
       return newAnswers;
     });
@@ -188,9 +203,10 @@ const ExamTestPage = () => {
       sessionStorage.removeItem("exam");
       sessionStorage.removeItem("time-left");
       sessionStorage.removeItem("exam_completing_time");
-      sessionStorage.removeItem(CURRENT_QUESTION_KEY);
 
-      navigate(`/exam/result/${id}`);
+      // Extract resultId from response and include in navigation
+      const resultId = res.data?._id;
+      navigate(`/exam/result/${id}${resultId ? `?resultId=${resultId}` : ""}`);
 
       setLoadingAPI(false);
     } catch (error) {
@@ -227,7 +243,6 @@ const ExamTestPage = () => {
         sessionStorage.removeItem("exam");
         sessionStorage.removeItem("time-left");
         sessionStorage.removeItem("exam_completing_time");
-        sessionStorage.removeItem("current-question");
 
         navigate(`/exam/${id}`);
       } catch (error) {
@@ -245,22 +260,192 @@ const ExamTestPage = () => {
       sessionStorage.removeItem("exam");
       sessionStorage.removeItem("time-left");
       sessionStorage.removeItem("exam_completing_time");
-      sessionStorage.removeItem("current-question");
       navigate(`/exam/${id}`);
     }
   };
 
-  const current = questionList
-    .filter((item) => item.type !== "MQ")
-    ?.find?.((q) => q.question === currentQuestion);
 
-  console.log("current", current);
+  // render a single question block (used in section view)
+  const renderQuestion = (current) => {
+    if (!current) return null;
+
+    // MT sub-question: render a single text input box (numbered by parent)
+    if (current.type === "MT") {
+      return (
+        <input
+          type="text"
+          maxLength={1}
+          className="border-2 border-gray-300 rounded-lg p-2 w-20 text-center font-bold uppercase text-lg focus:border-red-500 focus:outline-none transition-colors"
+          placeholder="A-F"
+          value={typeof answers[current.question] === "string" ? answers[current.question] : ""}
+          onChange={(e) => handleAnswerChange(current.question, e.target.value.toUpperCase())}
+        />
+      );
+    }
+
+    // Old Matching type (legacy)
+    if (current.type === "Matching") {
+      const matchItems = current.questions || current.items || [];
+      if (matchItems.length > 0) {
+        return (
+          <div className="space-y-3">
+            {matchItems.map((item, idx) => (
+              <div key={idx} className="flex gap-4 items-center">
+                <div className="font-semibold">{item.id || idx + 1}.</div>
+                <input
+                  type="text"
+                  className="border rounded p-2 w-24 text-center font-bold uppercase"
+                  placeholder="A,B..."
+                  value={answers[current.question]?.[item.id] || ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const currentAnsObj =
+                      typeof answers[current.question] === "object"
+                        ? answers[current.question]
+                        : {};
+                    handleAnswerChange(current.question, {
+                      ...currentAnsObj,
+                      [item.id]: val,
+                    });
+                  }}
+                />
+                <div className="flex-1">
+                  <MathRenderer content={item.content} />
+                </div>
+              </div>
+            ))}
+            <p className="text-sm text-gray-500 italic mt-2">
+              * Nhập ký tự tương ứng với đáp án ghép nối
+            </p>
+          </div>
+        );
+      }
+    }
+
+    // Options (Multiple Choice / True-False)
+    const options =
+      current.contentOptions || current.options || current.answers;
+    let displayOptions = [];
+    if (current.type === "DS") {
+      displayOptions = [
+        { id: "True", content: "Đúng" },
+        { id: "False", content: "Sai" },
+      ];
+    } else if (current.type === "TN") {
+      if (current.contentAnswerA)
+        displayOptions.push({ id: "A", content: current.contentAnswerA });
+      if (current.contentAnswerB)
+        displayOptions.push({ id: "B", content: current.contentAnswerB });
+      if (current.contentAnswerC)
+        displayOptions.push({ id: "C", content: current.contentAnswerC });
+      if (current.contentAnswerD)
+        displayOptions.push({ id: "D", content: current.contentAnswerD });
+      if (displayOptions.length === 0 && options) {
+        if (Array.isArray(options)) {
+          displayOptions = options.map((opt, idx) => ({
+            id: String.fromCharCode(65 + idx),
+            content: opt,
+          }));
+        }
+      }
+    } else if (options) {
+      if (Array.isArray(options)) {
+        displayOptions = options.map((opt, idx) => {
+          if (typeof opt === "string" || typeof opt === "number") {
+            return { id: String.fromCharCode(65 + idx), content: opt };
+          }
+          return {
+            id: opt.id || String.fromCharCode(65 + idx),
+            content: opt.content || opt.text || opt,
+          };
+        });
+      } else if (typeof options === "object") {
+        displayOptions = Object.entries(options).map(([key, value]) => ({
+          id: key,
+          content: value,
+        }));
+      }
+    }
+
+    if (displayOptions.length > 0) {
+      return (
+        <div className="grid grid-cols-1 gap-3">
+          {displayOptions.map((opt, idx) => {
+            const optId = opt.id;
+            const optContent = opt.content;
+            const isChecked = isSelected(current.question, optId);
+            return (
+              <div
+                key={idx}
+                onClick={() => handleAnswerChange(current.question, optId)}
+                className={`
+                  group relative cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 flex items-start gap-4
+                  ${isChecked
+                    ? "border-red-500 bg-red-50/50 shadow-sm"
+                    : "border-gray-100 bg-white hover:border-red-200 hover:bg-red-50/30"
+                  }
+                `}
+              >
+                <div
+                  className={`mt-1 w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors
+                    ${isChecked ? "bg-red-500 border-red-500" : "border-gray-300 group-hover:border-red-400 bg-white"}
+                  `}
+                >
+                  {isChecked && (
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  )}
+                </div>
+                <div
+                  className={`flex-1 text-base ${isChecked ? "text-red-900 font-medium" : "text-gray-700"
+                    }`}
+                >
+                  <span className="font-bold mr-2 text-red-600">{optId}.</span>
+                  <span className="inline-block">
+                    <MathRenderer
+                      content={
+                        typeof optContent === "string" ||
+                          typeof optContent === "number"
+                          ? optContent
+                          : optContent?.text || optContent
+                      }
+                    />
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Fallback text area
+    return (
+      <div className="relative">
+        <textarea
+          className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-red-100 focus:border-red-500 outline-none transition-all resize-none min-h-[120px] text-lg text-gray-700"
+          placeholder="Nhập câu trả lời của bạn vào đây..."
+          value={
+            typeof answers[current.question] === "string"
+              ? answers[current.question]
+              : ""
+          }
+          onChange={(e) =>
+            handleAnswerChange(current.question, e.target.value)
+          }
+        />
+        <div className="absolute bottom-4 right-4 text-xs text-gray-400 pointer-events-none">
+          Văn bản
+        </div>
+      </div>
+    );
+  };
+
 
   const sessionExam = JSON.parse(sessionStorage.getItem("exam"));
 
   // Check Helper
-  const isSelected = (val) => {
-    const currentAns = answers[currentQuestion];
+  const isSelected = (questionKey, val) => {
+    const currentAns = answers[questionKey];
     return currentAns === val;
   };
 
@@ -272,308 +457,215 @@ const ExamTestPage = () => {
         {/* LEFT COLUMN: Question Area */}
         <div className="flex-1 w-full lg:min-w-0">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-10 min-h-[85vh] flex flex-col relative overflow-hidden">
-            <div className="flex flex-col gap-8 flex-1">
-              {/* Current Question */}
-              <div className="flex-1">
-                {/* Question Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xl font-bold text-red-600 bg-red-50 px-4 py-1.5 rounded-lg border border-red-100 shadow-sm">
-                    {currentQuestion}
-                  </span>
-                   <button 
-                      onClick={() => setShowExitModal(true)}
-                      className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-50"
+            <div className="flex flex-col gap-6 flex-1">
+              {/* Section Tabs — LISTENING first */}
+              <div className="flex gap-4 mb-4">
+                {['LISTENING', 'READING', 'WRITING'].map((sec) => (
+                  <button
+                    key={sec}
+                    onClick={() => setCurrentSection(sec)}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors
+                      ${currentSection === sec ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                   >
-                      <LogOut size={18} />
-                      <span className="text-sm font-medium">Thoát</span>
+                    {sec === 'READING' ? 'Đọc' : sec === 'LISTENING' ? 'Nghe' : 'Viết'}
                   </button>
+                ))}
+              </div>
+
+              {/* Audio Player for LISTENING section - show at top */}
+              {currentSection === 'LISTENING' && examData?.audioUrl && (
+                <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                  <p className="text-sm font-semibold text-blue-900 mb-3">🔊 Nghe tài liệu âm thanh:</p>
+                  <audio controls className="w-full" key={examData.audioUrl}>
+                    <source src={examData.audioUrl} type="audio/mpeg" />
+                    Trình duyệt của bạn không hỗ trợ thẻ audio.
+                  </audio>
                 </div>
+              )}
 
-                {/* Question Content */}
-                <div className="mb-8 p-1">
-                  <div className="text-lg md:text-xl text-gray-900 leading-relaxed font-medium">
-                    <MathRenderer
-                      content={
-                        current?.contentQuestions || current?.contentQuestion
-                      }
-                    />
-                  </div>
-                  {current?.imageUrl && (
-                    <div className="mt-6 flex justify-center">
-                      <img
-                        src={current?.imageUrl}
-                        alt={currentQuestion}
-                        className="max-w-full h-auto rounded-xl shadow-md border border-gray-100"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* ANSWER SECTION - START */}
-                <div className="mb-8 border-t border-gray-100 pt-6">
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-red-600" />
-                    Chọn đáp án:
-                  </h3>
-
-                  {/* Generic Render based on properties */}
-                  {(() => {
-                    if (!current) return null;
-
-                    // 1. MATCHING Questions
-                    if (current.type === "Matching") {
-                      // Assuming standard matching structure
-                      const matchItems =
-                        current.questions || current.items || [];
-                      if (matchItems.length > 0) {
-                        return (
-                          <div className="space-y-3">
-                            {matchItems.map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="flex gap-4 items-center"
-                              >
-                                <div className="font-semibold">
-                                  {item.id || idx + 1}.
-                                </div>
-                                <input
-                                  type="text"
-                                  className="border rounded p-2 w-24 text-center font-bold uppercase"
-                                  placeholder="A,B..."
-                                  value={
-                                    answers[currentQuestion]?.[item.id] || ""
-                                  }
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const currentAnsObj =
-                                      typeof answers[currentQuestion] ===
-                                      "object"
-                                        ? answers[currentQuestion]
-                                        : {};
-                                    handleAnswerChange({
-                                      ...currentAnsObj,
-                                      [item.id]: val,
-                                    });
-                                  }}
-                                />
-                                <div className="flex-1">
-                                  <MathRenderer content={item.content} />
-                                </div>
-                              </div>
-                            ))}
-                            <p className="text-sm text-gray-500 italic mt-2">
-                              * Nhập ký tự tương ứng với đáp án ghép nối
-                            </p>
-                          </div>
-                        );
-                      }
-                    }
-
-                    // 2. Options (Multiple Choice / True-False)
-                    // Check for options array/object
-                    const options =
-                      current.contentOptions ||
-                      current.options ||
-                      current.answers;
-
-                    // Prepare options array based on types
-                    let displayOptions = [];
-
-                    // Type "DS" (True/False)
-                    if (current.type === "DS") {
-                      displayOptions = [
-                        { id: "True", content: "Đúng" },
-                        { id: "False", content: "Sai" },
-                      ];
-                    }
-                    // Type "TN" (Flattened contentAnswerA, B, C...)
-                    else if (current.type === "TN") {
-                      if (current.contentAnswerA)
-                        displayOptions.push({
-                          id: "A",
-                          content: current.contentAnswerA,
-                        });
-                      if (current.contentAnswerB)
-                        displayOptions.push({
-                          id: "B",
-                          content: current.contentAnswerB,
-                        });
-                      if (current.contentAnswerC)
-                        displayOptions.push({
-                          id: "C",
-                          content: current.contentAnswerC,
-                        });
-                      if (current.contentAnswerD)
-                        displayOptions.push({
-                          id: "D",
-                          content: current.contentAnswerD,
-                        });
-
-                      // Fallback if no flattened fields found but has options array
-                      if (displayOptions.length === 0 && options) {
-                        if (Array.isArray(options)) {
-                          displayOptions = options.map((opt, idx) => ({
-                            id: String.fromCharCode(65 + idx),
-                            content: opt,
-                          }));
+              {/* Questions for current section */}
+              <div className="flex-1 overflow-y-auto space-y-8">
+                {sectionQuestionList.length === 0 ? (
+                  <p className="text-center text-gray-500 italic">
+                    Không có câu hỏi cho phần này.
+                  </p>
+                ) : (
+                  // Group consecutive MT questions with the same matchGroup into one block
+                  (() => {
+                    const rendered = [];
+                    let i = 0;
+                    while (i < sectionQuestionList.length) {
+                      const q = sectionQuestionList[i];
+                      if (q.type === "MT" && q.matchGroup) {
+                        // Collect the whole group
+                        const group = [q];
+                        let j = i + 1;
+                        while (j < sectionQuestionList.length &&
+                          sectionQuestionList[j].type === "MT" &&
+                          sectionQuestionList[j].matchGroup === q.matchGroup) {
+                          group.push(sectionQuestionList[j]);
+                          j++;
                         }
-                      }
-                    }
-                    // Generic Options (Fallback for others)
-                    else if (options) {
-                      if (Array.isArray(options)) {
-                        displayOptions = options.map((opt, idx) => {
-                          if (
-                            typeof opt === "string" ||
-                            typeof opt === "number"
-                          ) {
-                            return {
-                              id: String.fromCharCode(65 + idx),
-                              content: opt,
-                            };
-                          }
-                          return {
-                            id: opt.id || String.fromCharCode(65 + idx),
-                            content: opt.content || opt.text || opt,
-                          };
-                        });
-                      } else if (typeof options === "object") {
-                        displayOptions = Object.entries(options).map(
-                          ([key, value]) => ({ id: key, content: value }),
-                        );
-                      }
-                    }
+                        // First item in group has imageUrl and contentQuestions
+                        const firstQ = group[0];
+                        const hasMtOptions = Array.isArray(firstQ.mtOptions) && firstQ.mtOptions.length > 0;
 
-                    // RENDER
-                    if (displayOptions.length > 0) {
-                      return (
-                        <div className="grid grid-cols-1 gap-3">
-                          {displayOptions.map((opt, idx) => {
-                            const optId = opt.id;
-                            const optContent = opt.content;
-                            const isChecked = isSelected(optId);
+                        if (hasMtOptions) {
+                          // MT Reading with propositions: pair each proposition with its answer
+                          rendered.push(
+                            <div key={firstQ.question} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                              {/* Header with description */}
+                              {firstQ.contentQuestions && (
+                                <div className="bg-gray-50 border-b border-gray-200 p-4 text-gray-800 leading-relaxed font-medium">
+                                  <MathRenderer content={firstQ.contentQuestions} />
+                                </div>
+                              )}
 
-                            return (
-                              <div
-                                key={idx}
-                                onClick={() => handleAnswerChange(optId)}
-                                className={`
-                                                    group relative cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 flex items-start gap-4
-                                                    ${
-                                                      isChecked
-                                                        ? "border-red-500 bg-red-50/50 shadow-sm"
-                                                        : "border-gray-100 bg-white hover:border-red-200 hover:bg-red-50/30"
-                                                    }
-                                                `}
-                              >
-                                {/* Checkbox Indicator */}
-                                <div
-                                  className={`mt-1 w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors
-                                                     ${isChecked ? "bg-red-500 border-red-500" : "border-gray-300 group-hover:border-red-400 bg-white"}
-                                                 `}
-                                >
-                                  {isChecked && (
-                                    <CheckCircle2 className="w-4 h-4 text-white" />
+                              {/* Split Layout: Left=Image, Right=Propositions+Inputs */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-0 h-auto">
+                                {/* LEFT: Image/Context Section */}
+                                <div className="bg-gray-50 border-r border-gray-200 p-6 flex items-center justify-center">
+                                  {firstQ.imageUrl ? (
+                                    <img
+                                      src={firstQ.imageUrl}
+                                      alt="reading-context"
+                                      className="max-w-full h-auto rounded-lg border border-gray-200"
+                                    />
+                                  ) : (
+                                    <p className="text-gray-400 italic text-center">Không có hình ảnh</p>
                                   )}
                                 </div>
 
-                                {/* Content */}
-                                <div
-                                  className={`flex-1 text-base ${isChecked ? "text-red-900 font-medium" : "text-gray-700"}`}
-                                >
-                                  <span className="font-bold mr-2 text-red-600">
-                                    {optId}.
-                                  </span>
-                                  <span className="inline-block">
-                                    <MathRenderer
-                                      content={
-                                        typeof optContent === "string" ||
-                                        typeof optContent === "number"
-                                          ? optContent
-                                          : optContent?.text || optContent
-                                      }
-                                    />
-                                  </span>
+                                {/* RIGHT: Combined propositions + answer inputs */}
+                                <div className="p-6 flex flex-col gap-6">
+                                  {group.map((subQ, idx) => {
+                                    const propText = firstQ.mtOptions[idx] || "";
+                                    return (
+                                      <div key={subQ.question} className="space-y-1">
+                                        {propText && (
+                                          <div className="text-sm text-gray-700 leading-relaxed p-2 bg-gray-50 rounded border border-gray-200">
+                                            <MathRenderer content={propText} />
+                                          </div>
+                                        )}
+                                        <div
+                                          id={subQ.question}
+                                          className="flex items-center gap-3 p-2 bg-gray-50 rounded hover:bg-red-50/30 transition-colors"
+                                        >
+                                          <span className="text-sm font-bold text-blue-600 flex-shrink-0 w-8">
+                                            {subQ.question}.
+                                          </span>
+                                          <input
+                                            type="text"
+                                            maxLength={1}
+                                            className={`border-2 rounded-lg p-2 w-16 text-center font-bold uppercase text-base transition-colors ${
+                                              answers[subQ.question]
+                                                ? "border-red-500 bg-red-50 text-red-700"
+                                                : "border-gray-300 focus:border-red-500"
+                                            } focus:outline-none flex-1`}
+                                            placeholder="A-F"
+                                            value={
+                                              typeof answers[subQ.question] === "string"
+                                                ? answers[subQ.question]
+                                                : ""
+                                            }
+                                            onChange={(e) =>
+                                              handleAnswerChange(
+                                                subQ.question,
+                                                e.target.value.toUpperCase()
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      );
+                            </div>
+                          );
+                        } else {
+                          // MT without propositions (old format): use original layout
+                          rendered.push(
+                            <div key={firstQ.question} className="p-4 border rounded-lg">
+                              {/* Description if any */}
+                              {firstQ.contentQuestions && (
+                                <div className="mb-4 text-gray-800 leading-relaxed font-medium">
+                                  <MathRenderer content={firstQ.contentQuestions} />
+                                </div>
+                              )}
+                              {/* Image on top, inputs below */}
+                              <div className="flex flex-col gap-6">
+                                {/* Image side */}
+                                {firstQ.imageUrl && (
+                                  <div className="flex justify-center">
+                                    <img
+                                      src={firstQ.imageUrl}
+                                      alt="matching"
+                                      className="max-w-full h-auto rounded-lg border border-gray-100"
+                                    />
+                                  </div>
+                                )}
+                                {/* Numbered input boxes */}
+                                <div className="flex flex-col gap-3 w-full">
+                                  {group.map((subQ) => (
+                                    <div key={subQ.question} id={subQ.question} className="flex items-center gap-3">
+                                      <span className="text-sm font-bold text-blue-600 w-8 flex-shrink-0">
+                                        {subQ.question}
+                                      </span>
+                                      <input
+                                        type="text"
+                                        maxLength={1}
+                                        className={`border-2 rounded-lg p-2 w-20 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
+                                            ? 'border-red-500 bg-red-50 text-red-700'
+                                            : 'border-gray-300 focus:border-red-500'
+                                          } focus:outline-none`}
+                                        placeholder="A-F"
+                                        value={typeof answers[subQ.question] === 'string' ? answers[subQ.question] : ''}
+                                        onChange={(e) => handleAnswerChange(subQ.question, e.target.value.toUpperCase())}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        i = j;
+                      } else {
+                        // Normal question rendering
+                        rendered.push(
+                          <div key={i} id={q.question} className="p-4 border rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-lg font-bold text-red-600">{q.question}</span>
+                            </div>
+                            {q.imageUrl && (
+                              <div className="mb-3 flex justify-center">
+                                <img src={q.imageUrl} alt={q.question} className="max-w-full h-56 object-contain rounded-lg" />
+                              </div>
+                            )}
+                            {q.contentQuestions && (
+                              <div className="mb-4 text-gray-800 leading-relaxed">
+                                <MathRenderer content={q.contentQuestions} />
+                              </div>
+                            )}
+                            <div className="border-t border-gray-100 pt-4">
+                              <h3 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-red-600" />
+                                Chọn đáp án:
+                              </h3>
+                              {renderQuestion(q)}
+                            </div>
+                          </div>
+                        );
+                        i++;
+                      }
                     }
-
-                    // 3. Fallback / Text Input
-                    return (
-                      <div className="relative">
-                        <textarea
-                          className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-red-100 focus:border-red-500 outline-none transition-all resize-none min-h-[120px] text-lg text-gray-700"
-                          placeholder="Nhập câu trả lời của bạn vào đây..."
-                          value={
-                            typeof answers[currentQuestion] === "string"
-                              ? answers[currentQuestion]
-                              : ""
-                          }
-                          onChange={(e) => handleAnswerChange(e.target.value)}
-                        />
-                        <div className="absolute bottom-4 right-4 text-xs text-gray-400 pointer-events-none">
-                          Văn bản
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-                {/* ANSWER SECTION - END */}
+                    return rendered;
+                  })()
+                )}
               </div>
 
-              {/* Navigation Buttons */}
-              <div className="flex items-center justify-between pt-6 border-t border-gray-100 mt-auto">
-                <button
-                  onClick={() => {
-                    const currentIndex = questionList?.findIndex(
-                      (q) => q.question === currentQuestion,
-                    );
-                    const prevIndex = Math.max(0, currentIndex - 1);
-                    handleSelectQuestion(prevIndex);
-                  }}
-                  disabled={currentQuestion === questionList?.[0]?.question}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200
-                             ${
-                               currentQuestion === questionList?.[0]?.question
-                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                 : "bg-white border-2 border-red-600 text-red-600 hover:bg-red-50 shadow-sm"
-                             }
-                        `}
-                >
-                  <ChevronLeft size={20} /> Trước
-                </button>
-
-                <button
-                  onClick={() => {
-                    const currentIndex = questionList?.findIndex(
-                      (q) => q.question === currentQuestion,
-                    );
-                    const nextIndex = Math.min(
-                      questionList?.length - 1,
-                      currentIndex + 1,
-                    );
-                    handleSelectQuestion(nextIndex);
-                  }}
-                  disabled={
-                    currentQuestion ===
-                    questionList[questionList?.length - 1]?.question
-                  }
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200
-                             ${
-                               currentQuestion ===
-                               questionList[questionList?.length - 1]?.question
-                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                 : "bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg"
-                             }
-                        `}
-                >
-                  Tiếp <ChevronRight size={20} />
-                </button>
-              </div>
+              {/* navigation removed - section handles full canvas */}
             </div>
           </div>
         </div>
@@ -598,15 +690,11 @@ const ExamTestPage = () => {
               {/* Questions Grid */}
               <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 <ExamNumber
-                  totalQuestions={
-                    questionList.filter((q) => q.type !== "MQ")?.length
-                  }
                   onSubmit={handleSubmit}
                   onSelect={handleSelectQuestion}
                   hasStarted={true}
                   answers={answers}
-                  currentQuestion={currentQuestion}
-                  questionList={questionList}
+                  questionList={allQuestions}
                   loadingAPI={loadingAPI}
                 />
               </div>
@@ -685,15 +773,11 @@ const ExamTestPage = () => {
 
               <div className="flex-1 overflow-y-auto p-4">
                 <ExamNumber
-                  totalQuestions={
-                    questionList.filter((q) => q.type !== "MQ")?.length
-                  }
                   onSubmit={handleSubmit}
                   onSelect={handleSelectQuestion}
                   hasStarted={true}
                   answers={answers}
-                  currentQuestion={currentQuestion}
-                  questionList={questionList}
+                  questionList={allQuestions}
                   loadingAPI={loadingAPI}
                 />
               </div>
@@ -711,9 +795,9 @@ const ExamTestPage = () => {
           </div>
         </>
       </div>
-      
-       {/* Exit Confirmation Modal */}
-       <ConfirmModal
+
+      {/* Exit Confirmation Modal */}
+      <ConfirmModal
         isOpen={showExitModal}
         onClose={() => setShowExitModal(false)}
         title="Bạn muốn thoát bài thi?"
@@ -732,8 +816,8 @@ const ExamTestPage = () => {
         ]}
       />
 
-       {/* Submit Confirmation Modal */}
-       <ConfirmModal
+      {/* Submit Confirmation Modal */}
+      <ConfirmModal
         isOpen={showSubmitModal}
         onClose={() => setShowSubmitModal(false)}
         title="Nộp bài thi?"
@@ -744,7 +828,7 @@ const ExamTestPage = () => {
             primary: true,
             onClick: confirmSubmit
           },
-           {
+          {
             label: "Kiểm tra lại",
             secondary: true,
             onClick: () => setShowSubmitModal(false)
