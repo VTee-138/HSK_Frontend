@@ -275,7 +275,7 @@ const ExamTestPage = () => {
         <input
           type="text"
           maxLength={1}
-          className="border-2 border-gray-300 rounded-lg p-2 w-20 text-center font-bold uppercase text-lg focus:border-red-500 focus:outline-none transition-colors"
+          className="border-2 border-gray-300 rounded-lg p-1 w-16 text-center font-semibold uppercase text-base focus:border-red-500 focus:outline-none transition-colors"
           placeholder="A-F"
           value={typeof answers[current.question] === "string" ? answers[current.question] : ""}
           onChange={(e) => handleAnswerChange(current.question, e.target.value.toUpperCase())}
@@ -291,10 +291,10 @@ const ExamTestPage = () => {
           <div className="space-y-3">
             {matchItems.map((item, idx) => (
               <div key={idx} className="flex gap-4 items-center">
-                <div className="font-semibold">{item.id || idx + 1}.</div>
+                <div className="font-semibold text-red-600">{item.id || idx + 1}.</div>
                 <input
                   type="text"
-                  className="border rounded p-2 w-24 text-center font-bold uppercase"
+                  className="border rounded p-2 w-16 text-center font-bold uppercase"
                   placeholder="A,B..."
                   value={answers[current.question]?.[item.id] || ""}
                   onChange={(e) => {
@@ -537,7 +537,7 @@ const ExamTestPage = () => {
                                 </div>
 
                                 {/* RIGHT: Combined propositions + answer inputs */}
-                                <div className="p-6 flex flex-col gap-6">
+                                <div className="p-2 flex flex-col gap-1">
                                   {group.map((subQ, idx) => {
                                     const propText = firstQ.mtOptions[idx] || "";
                                     return (
@@ -549,15 +549,15 @@ const ExamTestPage = () => {
                                         )}
                                         <div
                                           id={subQ.question}
-                                          className="flex items-center gap-3 p-2 bg-gray-50 rounded hover:bg-red-50/30 transition-colors"
+                                          className="flex items-center gap-1 p-0.5 bg-gray-50 rounded hover:bg-red-50/30 transition-colors"
                                         >
-                                          <span className="text-sm font-bold text-blue-600 flex-shrink-0 w-8">
+                                          <span className="text-sm font-bold text-red-600 flex-shrink-0 w-8">
                                             {subQ.question}.
                                           </span>
                                           <input
                                             type="text"
                                             maxLength={1}
-                                            className={`border-2 rounded-lg p-2 w-16 text-center font-bold uppercase text-base transition-colors ${
+                                            className={`border-2 rounded-lg p-0.5 w-8 text-center font-bold uppercase text-base transition-colors ${
                                               answers[subQ.question]
                                                 ? "border-red-500 bg-red-50 text-red-700"
                                                 : "border-gray-300 focus:border-red-500"
@@ -606,16 +606,16 @@ const ExamTestPage = () => {
                                   </div>
                                 )}
                                 {/* Numbered input boxes */}
-                                <div className="flex flex-col gap-3 w-full">
+                                <div className="flex flex-col gap-0 w-full">
                                   {group.map((subQ) => (
-                                    <div key={subQ.question} id={subQ.question} className="flex items-center gap-3">
-                                      <span className="text-sm font-bold text-blue-600 w-8 flex-shrink-0">
+                                    <div key={subQ.question} id={subQ.question} className="flex items-center gap-1">
+                                      <span className="text-sm font-bold text-red-600 w-8 flex-shrink-0">
                                         {subQ.question}
                                       </span>
                                       <input
                                         type="text"
                                         maxLength={1}
-                                        className={`border-2 rounded-lg p-2 w-20 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
+                                        className={`border-2 rounded-lg p-0.5 w-8 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
                                             ? 'border-red-500 bg-red-50 text-red-700'
                                             : 'border-gray-300 focus:border-red-500'
                                           } focus:outline-none`}
