@@ -275,7 +275,7 @@ const ExamTestPage = () => {
         <input
           type="text"
           maxLength={1}
-          className="border-2 border-gray-300 rounded-lg p-1 w-16 text-center font-semibold uppercase text-base focus:border-red-500 focus:outline-none transition-colors"
+          className="border-2 border-gray-300 rounded-lg p-1 w-32 text-center font-semibold uppercase text-base focus:border-red-500 focus:outline-none transition-colors"
           placeholder="A-F"
           value={typeof answers[current.question] === "string" ? answers[current.question] : ""}
           onChange={(e) => handleAnswerChange(current.question, e.target.value.toUpperCase())}
@@ -543,7 +543,7 @@ const ExamTestPage = () => {
                                     return (
                                       <div key={subQ.question} className="space-y-1">
                                         {propText && (
-                                          <div className="text-sm text-gray-700 leading-relaxed p-2 bg-gray-50 rounded border border-gray-200">
+                                          <div className="text-sm text-gray-700 leading-relaxed p-1 bg-gray-50 rounded border border-gray-200 text-center">
                                             <MathRenderer content={propText} />
                                           </div>
                                         )}
@@ -551,17 +551,17 @@ const ExamTestPage = () => {
                                           id={subQ.question}
                                           className="flex items-center gap-1 p-0.5 bg-gray-50 rounded hover:bg-red-50/30 transition-colors"
                                         >
-                                          <span className="text-sm font-bold text-red-600 flex-shrink-0 w-8">
+                                          <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap mr-2">
                                             {subQ.question}.
                                           </span>
                                           <input
                                             type="text"
                                             maxLength={1}
-                                            className={`border-2 rounded-lg p-0.5 w-8 text-center font-bold uppercase text-base transition-colors ${
+                                            className={`border-2 rounded-lg p-0.5 w-20 text-center font-bold uppercase text-base transition-colors ${
                                               answers[subQ.question]
                                                 ? "border-red-500 bg-red-50 text-red-700"
                                                 : "border-gray-300 focus:border-red-500"
-                                            } focus:outline-none flex-1`}
+                                            } focus:outline-none`}
                                             placeholder="A-F"
                                             value={
                                               typeof answers[subQ.question] === "string"
@@ -609,13 +609,13 @@ const ExamTestPage = () => {
                                 <div className="flex flex-col gap-0 w-full">
                                   {group.map((subQ) => (
                                     <div key={subQ.question} id={subQ.question} className="flex items-center gap-1">
-                                      <span className="text-sm font-bold text-red-600 w-8 flex-shrink-0">
+                                      <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap mr-2">
                                         {subQ.question}
                                       </span>
                                       <input
                                         type="text"
                                         maxLength={1}
-                                        className={`border-2 rounded-lg p-0.5 w-8 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
+                                        className={`border-2 rounded-lg p-0.5 w-16 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
                                             ? 'border-red-500 bg-red-50 text-red-700'
                                             : 'border-gray-300 focus:border-red-500'
                                           } focus:outline-none`}

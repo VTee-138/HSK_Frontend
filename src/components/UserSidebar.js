@@ -61,14 +61,24 @@ export default function UserSidebar({ isSidebarOpen, setIsSidebarOpen }) {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo Section */}
-        <div className="p-6">
-          <Link to="/" className="flex items-center gap-3 text-red-600 hover:opacity-80 transition-opacity">
-            <div className="bg-red-50 p-2 rounded-xl">
-              <GraduationCap size={28} />
-            </div>
-            <span className="text-xl font-bold tracking-tight">86HSK</span>
-          </Link>
-        </div>
+        <div className="p-4">
+  <Link
+    to="/"
+    className="group flex items-center gap-3 px-3 py-2 rounded-2xl transition-all hover:bg-gray-100"
+  >
+    <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 to-red-700 shadow-md group-hover:shadow-lg transition-all">
+      <img
+        src="/logo.png"
+        alt="86HSK"
+        className="w-14 h-14 object-contain"
+      />
+    </div>
+
+    <span className="text-lg font-bold text-gray-900 tracking-wide">
+    86<span className="text-red-600">HSK</span>
+    </span>
+  </Link>
+</div>
 
         {/* Navigation Section */}
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">

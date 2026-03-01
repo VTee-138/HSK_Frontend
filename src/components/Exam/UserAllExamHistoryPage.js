@@ -30,10 +30,11 @@ const UserAllExamHistoryPage = () => {
     try {
       setLoading(true);
       const res = await get(`/exam-result/history/all?page=${page}&limit=5`);
+      // debug: inspect API payload in browser console
+      // eslint-disable-next-line no-console
+      console.log("[fetchHistory] API response:", res);
       setHistory(res?.data || []);
-      setPagination(
-        res?.pagination,
-      );
+      setPagination(res?.pagination);
     } catch (error) {
       console.error("Error fetching history:", error);
       const message =
@@ -134,12 +135,12 @@ const UserAllExamHistoryPage = () => {
                               </div>
                               <div>
                                 <p className="font-bold text-gray-900 line-clamp-1 max-w-[200px] md:max-w-xs">
-                                  {exam.title?.text ||
-                                    exam.title ||
-                                    "Đề thi không xác định"}
+                                  {typeof exam.title === 'object' 
+                                    ? exam.title?.text || exam.title?.code || "Đề thi không xác định"
+                                    : exam.title || "Đề thi không xác định"}
                                 </p>
                                 <p className="text-xs text-gray-500 bg-gray-100 inline-block px-1.5 py-0.5 rounded mt-1">
-                                  {exam.type}
+                                  {exam.type || "N/A"}
                                 </p>
                               </div>
                             </div>
@@ -159,34 +160,36 @@ const UserAllExamHistoryPage = () => {
                               className={`
                                                         inline-block px-3 py-1 rounded-lg font-bold text-sm
                                                         ${
-                                                          item.total_score >= 8
+                                                          (Number(item.total_score) || 0) >= 8
                                                             ? "bg-green-100 text-green-700"
-                                                            : item.total_score >=
+                                                            : (Number(item.total_score) || 0) >=
                                                                 5
                                                               ? "bg-yellow-100 text-yellow-700"
                                                               : "bg-red-50 text-red-600"
                                                         }
                                                     `}
                             >
-                              {item.total_score}
+                              {(item.total_score !== undefined && item.total_score !== null)
+                                ? item.total_score
+                                : "N/A"}
                             </span>
                           </td>
                           <td className="p-4 text-center hidden md:table-cell">
                             <div className="text-sm text-gray-600 font-medium">
-                              {item.numberOfCorrectAnswers}/
-                              {exam.numberOfQuestions} câu
+                              {item.numberOfCorrectAnswers ?? 0}/
+                              {exam.numberOfQuestions ?? "?"}  câu
                             </div>
                           </td>
                           <td className="p-4 text-center hidden md:table-cell">
                             <div className="flex items-center justify-center gap-1 text-gray-500 text-sm">
                               <Clock className="w-4 h-4" />
                               {(() => {
-                                const durationInSeconds = Math.floor(
-                                  (item.examCompledTime || 0) / 1000,
-                                );
-                                const minutes = Math.floor(
-                                  durationInSeconds / 60,
-                                );
+                                // examCompledTime is already stored in *seconds* on the
+                                // server, so we don't divide by 1000 again here. The
+                                // previous code treated it as milliseconds which meant
+                                // the value was nearly always 0 when displaying the list.
+                                const durationInSeconds = item.examCompledTime || 0;
+                                const minutes = Math.floor(durationInSeconds / 60);
                                 const seconds = durationInSeconds % 60;
                                 return `${minutes}p ${seconds}s`;
                               })()}

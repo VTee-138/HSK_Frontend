@@ -22,7 +22,9 @@ const ExamHistoryPage = () => {
                 getExamHistory(id),
                 getExamDetail(id)
             ]);
-            
+            // debug: inspect API responses in browser console
+            // eslint-disable-next-line no-console
+            console.log('[fetchData] resHistory:', resHistory, 'resExam:', resExam);
             setHistory(resHistory?.data || []);
             setExamData(resExam?.data);
 
@@ -128,11 +130,11 @@ const ExamHistoryPage = () => {
                                                 <td className="p-4 text-center">
                                                     <span className={`
                                                         inline-block px-3 py-1 rounded-lg font-bold text-sm
-                                                        ${item.total_score >= 8 ? 'bg-green-100 text-green-700' : 
-                                                          item.total_score >= 5 ? 'bg-yellow-100 text-yellow-700' : 
+                                                        ${Number(item.total_score || 0) >= 8 ? 'bg-green-100 text-green-700' : 
+                                                          Number(item.total_score || 0) >= 5 ? 'bg-yellow-100 text-yellow-700' : 
                                                           'bg-red-50 text-red-600'}
                                                     `}>
-                                                        {item.total_score}
+                                                        {(item.total_score !== undefined && item.total_score !== null) ? item.total_score : 'N/A'}
                                                     </span>
                                                 </td>
                                                 <td className="p-4 text-center hidden md:table-cell">
