@@ -23,6 +23,7 @@ import MathRenderer from "../../../common/MathRenderer";
 import ConfirmModal from "../../ConfirmModal";
 
 const STORAGE_KEY = "exam-answers";
+const SESSION_EXAM_KEY = "exam"; // key used for exam session data in sessionStorage
 
 const ExamTestPage = () => {
   const { id } = useParams();
@@ -34,6 +35,12 @@ const ExamTestPage = () => {
   const [answers, setAnswers] = useState({});
   const [isOpen, setIsOpen] = useState(false); // Sidebar state for mobile
 
+  // mirror of session storage exam object
+  const [sessionExam, setSessionExam] = useState(() => {
+    const item = sessionStorage.getItem(SESSION_EXAM_KEY);
+    return item ? JSON.parse(item) : null;
+  });
+
   const [loadingAPI, setLoadingAPI] = useState(false);
 
   const [showExitModal, setShowExitModal] = useState(false);
@@ -44,6 +51,11 @@ const ExamTestPage = () => {
 
   const [searchParams] = useSearchParams();
   const selectedSectionsParam = searchParams.get("sections");
+  const modeParam = searchParams.get("mode"); // Extract mode: 'testing' or 'training'
+  const timeParam = searchParams.get("time"); // Custom time for training mode
+  
+  // For preventing audio seeking in testing mode
+  const [lastAudioTime, setLastAudioTime] = useState(0);
 
   // Fetch Exam Data
   const handleFetch = async () => {
@@ -81,14 +93,16 @@ const ExamTestPage = () => {
     if (examData) {
       const existingSession = sessionStorage.getItem("exam");
       if (!existingSession) {
-        sessionStorage.setItem(
-          "exam",
-          JSON.stringify({
-            _id: examData._id,
-            time: examData.time,
-            start: moment(new Date()),
-          }),
-        );
+        const init = {
+          _id: examData._id,
+          time: modeParam === "training" && timeParam ? parseInt(timeParam) : examData.time,
+          skillTimes: modeParam === "testing" ? (examData.skillTimes || { listening: 0, reading: 0, writing: 0 }) : { listening: 0, reading: 0, writing: 0 },
+          start: moment(new Date()),
+          currentSection: "LISTENING", // Start with first section
+          sectionStartTime: moment(new Date()), // Track when current section started
+        };
+        sessionStorage.setItem(SESSION_EXAM_KEY, JSON.stringify(init));
+        setSessionExam(init);
       }
 
       // if URL param requests specific sections, pick first one as current
@@ -136,6 +150,75 @@ const ExamTestPage = () => {
     return examData.questions.filter((q) => q.type !== "MQ");
   }, [examData]);
 
+  // Helper: Get section order
+  const getSectionOrder = () => ['LISTENING', 'READING', 'WRITING'];
+
+  // Helper: Check if all questions in a section are answered
+  const isSectionComplete = (section) => {
+    const questionsInSection = sections[section] || [];
+    if (questionsInSection.length === 0) return true;
+    return questionsInSection.every((q) => answers[q.question] !== undefined && answers[q.question] !== "");
+  };
+
+  // Helper: Check if a section can be accessed in testing mode
+  const canAccessSection = (section) => {
+    if (modeParam !== "testing") return true; // All sections accessible in training mode
+    
+    const sectionOrder = getSectionOrder();
+    const currentIndex = sectionOrder.indexOf(section);
+    
+    // Can't go back to previous sections
+    if (currentIndex < sectionOrder.indexOf(currentSection)) {
+      return false;
+    }
+    
+    // Can only access if previous sections are completed
+    for (let i = 0; i < currentIndex; i++) {
+      const prevSection = sectionOrder[i];
+      if (sections[prevSection] && sections[prevSection].length > 0 && !isSectionComplete(prevSection)) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
+  // Handle Section Change with Validation
+  const handleSectionChange = (newSection, forceChange = false) => {
+    // In testing mode, allow forced changes (e.g., when section times out)
+    if (!forceChange && modeParam === "testing") {
+      const sectionOrder = getSectionOrder();
+      const currentIndex = sectionOrder.indexOf(currentSection);
+      const newIndex = sectionOrder.indexOf(newSection);
+      
+      if (newIndex < currentIndex) {
+        toast.error("Bạn không thể quay lại phần thi trước");
+        return;
+      }
+      
+      // Can only access if previous sections are completed
+      for (let i = 0; i < currentIndex; i++) {
+        const prevSection = sectionOrder[i];
+        if (sections[prevSection] && sections[prevSection].length > 0 && !isSectionComplete(prevSection)) {
+          toast.error("Vui lòng hoàn thành tất cả câu hỏi của phần hiện tại trước");
+          return;
+        }
+      }
+    }
+
+    // Update session with new section and reset section timer
+    const sessionData = JSON.parse(sessionStorage.getItem(SESSION_EXAM_KEY));
+    const updatedSession = {
+      ...sessionData,
+      currentSection: newSection,
+      sectionStartTime: moment(new Date()),
+    };
+    sessionStorage.setItem(SESSION_EXAM_KEY, JSON.stringify(updatedSession));
+    setSessionExam(updatedSession);
+
+    setCurrentSection(newSection);
+  };
+
   const handleSelectQuestion = (index) => {
     const q = allQuestions[index];
     if (q) {
@@ -154,6 +237,50 @@ const ExamTestPage = () => {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newAnswers));
       return newAnswers;
     });
+  };
+
+  // Handle section timeout - auto move to next section
+  const handleSectionTimeout = () => {
+    const sectionOrder = getSectionOrder();
+    const currentIndex = sectionOrder.indexOf(currentSection);
+    
+    if (currentIndex < sectionOrder.length - 1) {
+      const nextSection = sectionOrder[currentIndex + 1];
+      toast.warning(`⏰ Hết thời gian phần ${currentSection === 'LISTENING' ? 'Nghe' : currentSection === 'READING' ? 'Đọc' : 'Viết'}! Chuyển sang phần tiếp theo.`);
+      handleSectionChange(nextSection, true); // Force change when section times out
+    } else {
+      // Last section, submit exam immediately without modal
+      confirmSubmit();
+    }
+  };
+
+  // Handle continue to next section
+  const handleContinue = () => {
+    const sectionOrder = getSectionOrder();
+    const currentIndex = sectionOrder.indexOf(currentSection);
+    if (currentIndex < sectionOrder.length - 1) {
+      const nextSection = sectionOrder[currentIndex + 1];
+      handleSectionChange(nextSection, true);
+    }
+  };
+
+  // Handle prevent audio seeking in testing mode
+  const handleAudioLoadedMetadata = (e) => {
+    const audio = e.currentTarget;
+    setLastAudioTime(audio.currentTime);
+  };
+
+  const handleAudioTimeUpdate = (e) => {
+    const audio = e.currentTarget;
+    if (modeParam === "testing") {
+      const timeDiff = Math.abs(audio.currentTime - lastAudioTime);
+      // If difference is more than 1 second, user tried to seek
+      if (timeDiff > 1) {
+        audio.currentTime = lastAudioTime;
+        toast.error("Bạn không thể tua audio trong chế độ kiểm tra");
+      }
+      setLastAudioTime(audio.currentTime);
+    }
   };
 
   useEffect(() => {
@@ -269,6 +396,76 @@ const ExamTestPage = () => {
   const renderQuestion = (current) => {
     if (!current) return null;
 
+    // Word Arrangement: detect "/" in question content
+    const questionText = current.contentQuestions || current.question || "";
+    if (questionText.includes("/") && current.type === "WR") {
+      const parts = questionText.split("/").map(p => p.trim()).filter(p => p.length > 0);
+      const answerKey = current.question;
+      const currentArrangement = answers[answerKey] || [];
+      const selectedSet = new Set(
+        Array.isArray(currentArrangement) ? currentArrangement : []
+      );
+
+      return (
+        <div className="space-y-4">
+          {/* Tiles of word parts */}
+          <div className="flex flex-wrap gap-2">
+            {parts.map((part, idx) => {
+              const isSelected = selectedSet.has(idx);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    const newArrangement = Array.isArray(currentArrangement) 
+                      ? [...currentArrangement] 
+                      : [];
+                    if (isSelected) {
+                      // Unselect: remove from arrangement
+                      handleAnswerChange(
+                        answerKey,
+                        newArrangement.filter(i => i !== idx)
+                      );
+                    } else {
+                      // Select: add to arrangement
+                      newArrangement.push(idx);
+                      handleAnswerChange(answerKey, newArrangement);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg font-semibold border-2 transition-all ${
+                    isSelected
+                      ? "bg-red-100 border-red-500 text-red-700 line-through"
+                      : "bg-white border-gray-300 text-gray-800 hover:border-red-400"
+                  }`}
+                >
+                  {part}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Arrangement result area */}
+          <div className="border-2 border-gray-300 rounded-lg p-4 min-h-[60px] bg-gray-50">
+            <p className="text-sm text-gray-600 mb-2">Sắp xếp lại:</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.isArray(currentArrangement) && currentArrangement.length > 0 ? (
+                currentArrangement.map((idx, pos) => (
+                  <span key={pos} className="px-3 py-2 bg-red-100 border border-red-400 rounded text-red-800 font-medium">
+                    {parts[idx]}
+                  </span>
+                ))
+              ) : (
+                <span className="text-gray-400 italic">Chọn các từ để sắp xếp</span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            * Click vào từ để thêm, click lại để loại bỏ
+          </p>
+        </div>
+      );
+    }
+
     // MT sub-question: render a single text input box (numbered by parent)
     if (current.type === "MT") {
       return (
@@ -287,36 +484,67 @@ const ExamTestPage = () => {
     if (current.type === "Matching") {
       const matchItems = current.questions || current.items || [];
       if (matchItems.length > 0) {
+        // left panel text/image
+        const leftText = current.contentQuestions || current.contentQuestion || current.question || "";
+        const leftImage = current.imageUrl;
+        const hasLeft = leftText || leftImage;
         return (
-          <div className="space-y-3">
-            {matchItems.map((item, idx) => (
-              <div key={idx} className="flex gap-4 items-center">
-                <div className="font-semibold text-red-600">{item.id || idx + 1}.</div>
-                <input
-                  type="text"
-                  className="border rounded p-2 w-16 text-center font-bold uppercase"
-                  placeholder="A,B..."
-                  value={answers[current.question]?.[item.id] || ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const currentAnsObj =
-                      typeof answers[current.question] === "object"
-                        ? answers[current.question]
-                        : {};
-                    handleAnswerChange(current.question, {
-                      ...currentAnsObj,
-                      [item.id]: val,
-                    });
-                  }}
-                />
-                <div className="flex-1">
-                  <MathRenderer content={item.content} />
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* left side with text and/or image */}
+            <div className="w-full lg:w-1/3 p-2 border rounded-lg flex flex-col items-center justify-center">
+              {hasLeft ? (
+                <>
+                  {leftText && (
+                    <div className="mb-2 text-gray-800">
+                      <MathRenderer content={leftText} />
+                    </div>
+                  )}
+                  {leftImage && (
+                    <img
+                      src={leftImage}
+                      alt="matching-context"
+                      className="max-w-full h-auto rounded-lg border border-gray-200"
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="text-gray-400 italic">Không có dữ liệu</div>
+              )}
+            </div>
+
+            {/* right side: answer inputs */}
+            <div className="flex-1 space-y-3">
+              {matchItems.map((item, idx) => (
+                <div key={idx} className="flex gap-4 items-center">
+                  <div className="font-semibold text-red-600">{item.id || idx + 1}.</div>
+                  <div className="flex-1 flex justify-center">
+                    <input
+                      type="text"
+                      className="border rounded p-2 w-16 text-center font-bold uppercase mx-auto self-center"
+                      placeholder="A,B..."
+                      value={answers[current.question]?.[item.id] || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const currentAnsObj =
+                          typeof answers[current.question] === "object"
+                            ? answers[current.question]
+                            : {};
+                        handleAnswerChange(current.question, {
+                          ...currentAnsObj,
+                          [item.id]: val,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <MathRenderer content={item.content} />
+                  </div>
                 </div>
-              </div>
-            ))}
-            <p className="text-sm text-gray-500 italic mt-2">
-              * Nhập ký tự tương ứng với đáp án ghép nối
-            </p>
+              ))}
+              <p className="text-sm text-gray-500 italic mt-2">
+                * Nhập ký tự tương ứng với đáp án ghép nối
+              </p>
+            </div>
           </div>
         );
       }
@@ -374,6 +602,8 @@ const ExamTestPage = () => {
             const optId = opt.id;
             const optContent = opt.content;
             const isChecked = isSelected(current.question, optId);
+            // For True/False questions (DS/TN), use radio button style (circle)
+            const isTrueFalseQuestion = ["DS", "TN"].includes(current.type);
             return (
               <div
                 key={idx}
@@ -387,7 +617,7 @@ const ExamTestPage = () => {
                 `}
               >
                 <div
-                  className={`mt-1 w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors
+                  className={`mt-1 w-6 h-6 ${isTrueFalseQuestion ? "rounded-full" : "rounded-md"} border-2 flex items-center justify-center flex-shrink-0 transition-colors
                     ${isChecked ? "bg-red-500 border-red-500" : "border-gray-300 group-hover:border-red-400 bg-white"}
                   `}
                 >
@@ -440,9 +670,6 @@ const ExamTestPage = () => {
     );
   };
 
-
-  const sessionExam = JSON.parse(sessionStorage.getItem("exam"));
-
   // Check Helper
   const isSelected = (questionKey, val) => {
     const currentAns = answers[questionKey];
@@ -453,33 +680,79 @@ const ExamTestPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative">
+      {/* Testing Mode Banner */}
+      {modeParam === "testing" && (
+        <div className="bg-red-600 text-white px-4 py-3 flex items-center justify-center gap-2 font-semibold">
+          <span>🔒</span>
+          <span>Chế độ kiểm tra - Bạn phải hoàn thành từng phần theo thứ tự</span>
+        </div>
+      )}
+      
       <div className="flex-1 max-w-[1920px] mx-auto w-full p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-8">
         {/* LEFT COLUMN: Question Area */}
         <div className="flex-1 w-full lg:min-w-0">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-10 min-h-[85vh] flex flex-col relative overflow-hidden">
             <div className="flex flex-col gap-6 flex-1">
-              {/* Section Tabs — LISTENING first */}
-              <div className="flex gap-4 mb-4">
-                {['LISTENING', 'READING', 'WRITING'].map((sec) => (
-                  <button
-                    key={sec}
-                    onClick={() => setCurrentSection(sec)}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-colors
-                      ${currentSection === sec ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                  >
-                    {sec === 'READING' ? 'Đọc' : sec === 'LISTENING' ? 'Nghe' : 'Viết'}
-                  </button>
-                ))}
+              {/* Section Tabs with Time Allocation Info — LISTENING first */}
+              <div className="space-y-4">
+                <div className="flex gap-4 mb-4 flex-wrap">
+                  {['LISTENING', 'READING', 'WRITING'].map((sec) => {
+                    const isAccessible = canAccessSection(sec);
+                    const isComplete = isSectionComplete(sec);
+                    const hasQuestions = (sections[sec] || []).length > 0;
+                    const skillKey = sec.toLowerCase();
+                    const skillTime = examData?.skillTimes?.[skillKey] || 0;
+                    
+                    return (
+                      <button
+                        key={sec}
+                        onClick={() => handleSectionChange(sec)}
+                        disabled={!isAccessible && modeParam === "testing"}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-colors relative
+                          ${currentSection === sec 
+                            ? 'bg-red-600 text-white' 
+                            : isAccessible
+                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                          }`}
+                        title={!isAccessible && modeParam === "testing" ? "Phần này chưa có thể truy cập" : ""}
+                      >
+                        <span className="flex items-center gap-2">
+                          {sec === 'READING' ? 'Đọc' : sec === 'LISTENING' ? 'Nghe' : 'Viết'}
+                          {skillTime > 0 && (
+                            <span className={`text-xs px-2 py-1 rounded ${currentSection === sec ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-200 bg-opacity-30'}`}>
+                              {currentSection === sec ? `${skillTime}p (đang thi)` : `${skillTime}p`}
+                            </span>
+                          )}
+                          {modeParam === "testing" && hasQuestions && (
+                            <span className={`w-2 h-2 rounded-full ${isComplete ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Audio Player for LISTENING section - show at top */}
               {currentSection === 'LISTENING' && examData?.audioUrl && (
                 <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                   <p className="text-sm font-semibold text-blue-900 mb-3">🔊 Nghe tài liệu âm thanh:</p>
-                  <audio controls className="w-full" key={examData.audioUrl}>
+                  <audio 
+
+                    controls 
+                    className="w-full" 
+                    key={examData.audioUrl}
+                    controlsList="nodownload"
+                    onLoadedMetadata={handleAudioLoadedMetadata}
+                    onTimeUpdate={handleAudioTimeUpdate}
+                  >
                     <source src={examData.audioUrl} type="audio/mpeg" />
                     Trình duyệt của bạn không hỗ trợ thẻ audio.
                   </audio>
+                  {modeParam === "testing" && (
+                    <p className="text-xs text-blue-700 mt-2 italic">⚠️ Chế độ kiểm tra: Không được phép tua audio</p>
+                  )}
                 </div>
               )}
 
@@ -511,53 +784,57 @@ const ExamTestPage = () => {
                         const hasMtOptions = Array.isArray(firstQ.mtOptions) && firstQ.mtOptions.length > 0;
 
                         if (hasMtOptions) {
-                          // MT Reading with propositions: pair each proposition with its answer
+                          // MT Reading with propositions: text+image left, propositions+inputs right
+                          const leftText = firstQ.contentQuestions || "";
+                          const hasLeftContent = leftText || firstQ.imageUrl;
                           rendered.push(
                             <div key={firstQ.question} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-                              {/* Header with description */}
-                              {firstQ.contentQuestions && (
-                                <div className="bg-gray-50 border-b border-gray-200 p-4 text-gray-800 leading-relaxed font-medium">
-                                  <MathRenderer content={firstQ.contentQuestions} />
-                                </div>
-                              )}
-
-                              {/* Split Layout: Left=Image, Right=Propositions+Inputs */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-0 h-auto">
-                                {/* LEFT: Image/Context Section */}
-                                <div className="bg-gray-50 border-r border-gray-200 p-6 flex items-center justify-center">
-                                  {firstQ.imageUrl ? (
-                                    <img
-                                      src={firstQ.imageUrl}
-                                      alt="reading-context"
-                                      className="max-w-full h-auto rounded-lg border border-gray-200"
-                                    />
+                              {/* Split Layout: Left=Text+Image, Right=Propositions+Inputs */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 h-auto">
+                                {/* LEFT: Text and/or Image merged */}
+                                <div className="bg-gray-50 border-r border-gray-200 p-6 flex flex-col items-center justify-center">
+                                  {hasLeftContent ? (
+                                    <>
+                                      {leftText && (
+                                        <div className="mb-4 text-gray-800 leading-relaxed font-medium text-center">
+                                          <MathRenderer content={leftText} />
+                                        </div>
+                                      )}
+                                      {firstQ.imageUrl && (
+                                        <img
+                                          src={firstQ.imageUrl}
+                                          alt="reading-context"
+                                          className="max-w-full h-auto rounded-lg border border-gray-200"
+                                        />
+                                      )}
+                                    </>
                                   ) : (
-                                    <p className="text-gray-400 italic text-center">Không có hình ảnh</p>
+                                    <div className="text-gray-400 italic text-center">Không có dữ liệu</div>
                                   )}
                                 </div>
 
-                                {/* RIGHT: Combined propositions + answer inputs */}
-                                <div className="p-2 flex flex-col gap-1">
+                                {/* RIGHT: Propositions + answer inputs */}
+                                <div className="p-4 flex flex-col gap-2">
                                   {group.map((subQ, idx) => {
                                     const propText = firstQ.mtOptions[idx] || "";
                                     return (
                                       <div key={subQ.question} className="space-y-1">
                                         {propText && (
-                                          <div className="text-sm text-gray-700 leading-relaxed p-1 bg-gray-50 rounded border border-gray-200 text-center">
+                                          <div className="text-sm text-gray-700 leading-relaxed p-2 bg-gray-50 rounded border border-gray-200 text-center">
                                             <MathRenderer content={propText} />
                                           </div>
                                         )}
                                         <div
                                           id={subQ.question}
-                                          className="flex items-center gap-1 p-0.5 bg-gray-50 rounded hover:bg-red-50/30 transition-colors"
+                                          className="flex items-center gap-2 p-1 rounded hover:bg-red-50/30 transition-colors"
                                         >
-                                          <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap mr-2">
+                                          <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
                                             {subQ.question}.
                                           </span>
                                           <input
                                             type="text"
                                             maxLength={1}
-                                            className={`border-2 rounded-lg p-0.5 w-20 text-center font-bold uppercase text-base transition-colors ${
+                                            className={`border-2 rounded-lg p-1 w-20 text-center font-bold uppercase text-base transition-colors ${
                                               answers[subQ.question]
                                                 ? "border-red-500 bg-red-50 text-red-700"
                                                 : "border-gray-300 focus:border-red-500"
@@ -608,21 +885,23 @@ const ExamTestPage = () => {
                                 {/* Numbered input boxes */}
                                 <div className="flex flex-col gap-0 w-full">
                                   {group.map((subQ) => (
-                                    <div key={subQ.question} id={subQ.question} className="flex items-center gap-1">
-                                      <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap mr-2">
+                                    <div key={subQ.question} id={subQ.question} className="flex items-center gap-2">
+                                      <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
                                         {subQ.question}
                                       </span>
-                                      <input
-                                        type="text"
-                                        maxLength={1}
-                                        className={`border-2 rounded-lg p-0.5 w-16 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
-                                            ? 'border-red-500 bg-red-50 text-red-700'
-                                            : 'border-gray-300 focus:border-red-500'
-                                          } focus:outline-none`}
-                                        placeholder="A-F"
-                                        value={typeof answers[subQ.question] === 'string' ? answers[subQ.question] : ''}
-                                        onChange={(e) => handleAnswerChange(subQ.question, e.target.value.toUpperCase())}
-                                      />
+                                      <div className="flex-1 flex justify-center">
+                                        <input
+                                          type="text"
+                                          maxLength={1}
+                                          className={`border-2 rounded-lg p-1 w-16 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
+                                              ? 'border-red-500 bg-red-50 text-red-700'
+                                              : 'border-gray-300 focus:border-red-500'
+                                            } focus:outline-none mx-auto`}
+                                          placeholder="A-F"
+                                          value={typeof answers[subQ.question] === 'string' ? answers[subQ.question] : ''}
+                                          onChange={(e) => handleAnswerChange(subQ.question, e.target.value.toUpperCase())}
+                                        />
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -633,31 +912,42 @@ const ExamTestPage = () => {
                         i = j;
                       } else {
                         // Normal question rendering
-                        rendered.push(
-                          <div key={i} id={q.question} className="p-4 border rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-lg font-bold text-red-600">{q.question}</span>
-                            </div>
-                            {q.imageUrl && (
-                              <div className="mb-3 flex justify-center">
-                                <img src={q.imageUrl} alt={q.question} className="max-w-full h-56 object-contain rounded-lg" />
-                              </div>
-                            )}
-                            {q.contentQuestions && (
-                              <div className="mb-4 text-gray-800 leading-relaxed">
-                                <MathRenderer content={q.contentQuestions} />
-                              </div>
-                            )}
-                            <div className="border-t border-gray-100 pt-4">
-                              <h3 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 text-red-600" />
-                                Chọn đáp án:
-                              </h3>
+                        if (q.type === "Matching") {
+                          // matching handled inside renderQuestion which already
+                          // contains its own header/left panel so avoid duplicate
+                          rendered.push(
+                            <div key={i} id={q.question} className="p-4 border rounded-lg">
                               {renderQuestion(q)}
                             </div>
-                          </div>
-                        );
-                        i++;
+                          );
+                          i++;
+                        } else {
+                          rendered.push(
+                            <div key={i} id={q.question} className="p-4 border rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-lg font-bold text-red-600">{q.question}</span>
+                              </div>
+                              {q.imageUrl && (
+                                <div className="mb-3 flex justify-center">
+                                  <img src={q.imageUrl} alt={q.question} className="max-w-full h-56 object-contain rounded-lg" />
+                                </div>
+                              )}
+                              {q.contentQuestions && (
+                                <div className="mb-4 text-gray-800 leading-relaxed">
+                                  <MathRenderer content={q.contentQuestions} />
+                                </div>
+                              )}
+                              <div className="border-t border-gray-100 pt-4">
+                                <h3 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                  <CheckCircle2 className="w-4 h-4 text-red-600" />
+                                  {q.type === 'WR' ? 'Sắp xếp lại câu:' : 'Chọn đáp án:'}
+                                </h3>
+                                {renderQuestion(q)}
+                              </div>
+                            </div>
+                          );
+                          i++;
+                        }
                       }
                     }
                     return rendered;
@@ -680,7 +970,7 @@ const ExamTestPage = () => {
               <div className="p-4 bg-gradient-to-r from-red-600 to-indigo-600 text-white shadow-sm z-10">
                 <div className="flex items-center justify-center gap-2 text-lg font-bold mb-1">
                   <Clock size={20} />
-                  <Countdown exam={sessionExam} onComplete={handleSubmit} />
+                  <Countdown exam={sessionExam} onComplete={handleSubmit} currentSection={currentSection} onSectionTimeout={handleSectionTimeout} />
                 </div>
                 <p className="text-center text-red-100 text-xs">
                   Thời gian còn lại
@@ -702,7 +992,7 @@ const ExamTestPage = () => {
               {/* Footer with Submit Button */}
               <div className="p-4 border-t border-gray-100 bg-gray-50">
                 <button
-                  onClick={handleSubmit}
+                  onClick={currentSection === 'WRITING' ? handleSubmit : handleContinue}
                   disabled={loadingAPI}
                   className="w-full bg-red-600 hover:bg-red-700 text-white font-bold mb-5 py-3 px-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -710,7 +1000,7 @@ const ExamTestPage = () => {
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                   ) : (
                     <>
-                      Nộp bài thi <CheckCircle2 size={18} />
+                      {currentSection === 'WRITING' ? 'Nộp bài thi' : 'Tiếp tục'} <CheckCircle2 size={18} />
                     </>
                   )}
                 </button>
@@ -767,7 +1057,7 @@ const ExamTestPage = () => {
               <div className="p-4 bg-gray-50 border-b border-gray-200">
                 <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-200 flex items-center justify-center gap-2 text-red-600 font-bold">
                   <Clock size={18} />
-                  <Countdown exam={sessionExam} onComplete={handleSubmit} />
+                  <Countdown exam={sessionExam} onComplete={handleSubmit} currentSection={currentSection} onSectionTimeout={handleSectionTimeout} />
                 </div>
               </div>
 
@@ -784,11 +1074,11 @@ const ExamTestPage = () => {
 
               <div className="p-4 bg-white border-t border-gray-100">
                 <button
-                  onClick={handleSubmit}
+                  onClick={currentSection === 'WRITING' ? handleSubmit : handleContinue}
                   disabled={loadingAPI}
                   className="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
                 >
-                  {loadingAPI ? "Đang nộp..." : "Nộp bài"}
+                  {loadingAPI ? "Đang nộp..." : (currentSection === 'WRITING' ? "Nộp bài" : "Tiếp tục")}
                 </button>
               </div>
             </div>

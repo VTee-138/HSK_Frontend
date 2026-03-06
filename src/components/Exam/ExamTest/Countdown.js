@@ -1,11 +1,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef } from "react";
 import moment from "moment";
+import { toast } from "react-toastify";
 
-const Countdown = ({ exam, onComplete, isTitle = false }) => {
+const Countdown = ({ exam, onComplete, isTitle = false, currentSection = "LISTENING", onSectionTimeout }) => {
   const [remainingTime, setRemainingTime] = useState(null);
   const [completingTime, setCompletingTime] = useState(null);
   const hasChecked = useRef(false);
+  const hasWarned5Min = useRef(false);
   const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
@@ -16,19 +18,30 @@ const Countdown = ({ exam, onComplete, isTitle = false }) => {
     if (!exam) return;
 
     hasChecked.current = false;
-    const startTime = moment(exam.start);
-    const endTime = startTime.clone().add(exam.time, "minutes");
+    hasWarned5Min.current = false; // Reset cảnh báo 5 phút
+    
+    // Get current section time from skillTimes
+    const skillTimes = exam.skillTimes || { listening: 0, reading: 0, writing: 0 };
+    const sectionKey = currentSection.toLowerCase();
+    // Use section time, if 0 or not set, use total exam time divided by 3 as default
+    let sectionTime = skillTimes[sectionKey];
+    if (!sectionTime || sectionTime <= 0) {
+      sectionTime = Math.floor((exam.time || 0) / 3);
+    }
+    
+    const sectionStartTime = moment(exam.sectionStartTime || exam.start);
+    const sectionEndTime = sectionStartTime.clone().add(sectionTime, "minutes");
 
     const updateRemainingTime = () => {
       const now = moment();
-      const diff = endTime.diff(now, "seconds");
+      const diff = sectionEndTime.diff(now, "seconds");
       const timeLeft = Math.max(0, diff);
 
       setRemainingTime(timeLeft);
       sessionStorage.setItem("time-left", JSON.stringify(timeLeft * 1000));
 
-      const elapsed = Math.max(0, now.diff(startTime, "seconds"));
-      const fixedElapsed = Math.min(elapsed, exam.time * 60);
+      const elapsed = Math.max(0, now.diff(sectionStartTime, "seconds"));
+      const fixedElapsed = Math.min(elapsed, sectionTime * 60);
 
       setCompletingTime(fixedElapsed);
       sessionStorage.setItem(
@@ -36,9 +49,34 @@ const Countdown = ({ exam, onComplete, isTitle = false }) => {
         JSON.stringify(fixedElapsed * 1000)
       );
 
+      // Cảnh báo khi còn 5 phút (300 giây)
+      if (timeLeft <= 300 && timeLeft > 299 && !hasWarned5Min.current) {
+        hasWarned5Min.current = true;
+        toast.warning("⚠️ Còn 5 phút nữa là hết giờ! Không được bỏ sót câu hỏi nào vì bài thi sẽ tự động nộp khi hết thời gian.", {
+          position: "top-center",
+          autoClose: 10000, // Hiển thị 10 giây
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+
       if (timeLeft === 0 && !hasChecked.current) {
         hasChecked.current = true;
-        onCompleteRef.current?.();
+        
+        // Check if there are more sections to go
+        const sectionOrder = ['LISTENING', 'READING', 'WRITING'];
+        const currentIndex = sectionOrder.indexOf(currentSection.toUpperCase());
+        const hasNextSection = currentIndex < sectionOrder.length - 1;
+        
+        if (hasNextSection && onSectionTimeout) {
+          // Move to next section instead of submitting
+          onSectionTimeout();
+        } else {
+          // Last section or no onSectionTimeout provided, submit exam
+          onCompleteRef.current?.();
+        }
       }
     };
 
@@ -46,7 +84,7 @@ const Countdown = ({ exam, onComplete, isTitle = false }) => {
     const intervalId = setInterval(updateRemainingTime, 1000);
 
     return () => clearInterval(intervalId);
-  }, [exam?._id, exam?.start, exam?.time]);
+  }, [exam?._id, exam?.sectionStartTime, exam?.skillTimes, currentSection]);
 
   const formatTime = (seconds) => {
     const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
@@ -62,9 +100,14 @@ const Countdown = ({ exam, onComplete, isTitle = false }) => {
           Thời gian còn lại:
         </span>
       )}
-      <span className="font-mono text-inherit tracking-widest">
+      <span className={`font-mono tracking-widest ${remainingTime <= 300 ? 'text-red-600 font-bold animate-pulse' : 'text-inherit'}`}>
           {formatTime(remainingTime)}
       </span>
+      {remainingTime <= 300 && (
+        <span className="text-xs text-red-600 font-semibold animate-pulse">
+          🔥 Hết giờ sắp tới!
+        </span>
+      )}
     </div>
   );
 };

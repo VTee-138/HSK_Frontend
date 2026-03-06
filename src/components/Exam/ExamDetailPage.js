@@ -83,6 +83,7 @@ const ExamDetailPage = () => {
   const [scope, setScope] = useState("full"); // 'full' | 'sections'
   const [selectedSections, setSelectedSections] = useState([]);
   const [showStartModal, setShowStartModal] = useState(false);
+  const [customTime, setCustomTime] = useState(0); // 0 means unlimited
 
   const handleFetch = async () => {
     try {
@@ -112,6 +113,13 @@ const ExamDetailPage = () => {
   useEffect(() => {
     handleFetch();
   }, [id]);
+
+  // Force full scope for testing mode
+  useEffect(() => {
+    if (mode === "testing") {
+      setScope("full");
+    }
+  }, [mode]);
 
   // Handle Browser Back Button to redirect to /exam
   useEffect(() => {
@@ -153,6 +161,7 @@ const ExamDetailPage = () => {
       mode: mode,
       scope: scope,
       sections: scope === "sections" ? selectedSections.join(",") : "",
+      ...(mode === "training" && customTime > 0 && { time: customTime }),
     }).toString();
 
     navigate(`/exam/test/${id}?${queryParams}`);
@@ -338,8 +347,10 @@ const ExamDetailPage = () => {
                   </button>
                   <button
                     onClick={() => setScope("sections")}
+                    disabled={mode === "testing"}
                     className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all duration-200
                                     ${scope === "sections" ? "bg-red-600 text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}
+                                    ${mode === "testing" ? "opacity-50 cursor-not-allowed" : ""}
                                 `}
                   >
                     Chọn phần thi (Sections)
@@ -382,6 +393,36 @@ const ExamDetailPage = () => {
                 </div>
               )}
             </section>
+
+            {/* 3. Time Selection for Training */}
+            {mode === "training" && (
+              <section>
+                <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Clock className="text-red-600" size={24} /> Thời gian luyện tập
+                </h3>
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="number"
+                      min="0"
+                      step="5"
+                      value={customTime}
+                      onChange={(e) => {
+                        let val = parseInt(e.target.value) || 0;
+                        if (val > 0) {
+                          val = Math.ceil(val / 5) * 5; // round up to nearest 5
+                        }
+                        setCustomTime(val);
+                      }}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="0"
+                    />
+                    <span className="text-gray-600">phút (0 = không giới hạn)</span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">Thời gian sẽ được làm tròn lên số chia hết cho 5.</p>
+                </div>
+              </section>
+            )}
           </div>
 
           {/* Sticky Action Column */}
@@ -417,7 +458,7 @@ const ExamDetailPage = () => {
                       <span className="font-bold text-gray-900">
                         {mode === "testing"
                           ? `${examData.time} phút`
-                          : "Không giới hạn"}
+                          : customTime > 0 ? `${customTime} phút` : "Không giới hạn"}
                       </span>
                     </li>
                   </ul>

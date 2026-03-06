@@ -52,12 +52,20 @@ function ExamResultPage() {
   // helpers used only in this component
   const convertForDisplay = (val, questionType) => {
       if (val === undefined || val === null || val === "") return "";
+      if (Array.isArray(val)) {
+          // generic array handling (indexes or values)
+          return val.join(",");
+      }
       if (questionType === "TS" || questionType === "DS") {
           const str = String(val).trim();
           const upper = str.toUpperCase();
           const lower = str.toLowerCase();
           if (upper === "A" || lower === "true") return "True";
           if (upper === "B" || lower === "false") return "False";
+      }
+      if (questionType === "WR") {
+          // strip slashes for display
+          return String(val).replace(/\//g, "");
       }
       return String(val);
   };
@@ -358,9 +366,20 @@ function ExamResultPage() {
                                          userAnswer === undefined ||
                                          userAnswer === null ||
                                          userAnswer === "";
-                                     const displayUser = isBlank
-                                         ? "Không trả lời"
-                                         : convertForDisplay(userAnswer, question.type);
+                                     let displayUser;
+                                     if (isBlank) {
+                                         displayUser = "Không trả lời";
+                                     } else if (question.type === 'WR' && Array.isArray(userAnswer)) {
+                                         const parts = String(question.contentQuestions || "")
+                                             .split("/")
+                                             .map(p => p.trim())
+                                             .filter(p => p.length > 0);
+                                         displayUser = userAnswer
+                                             .map(i => parts[parseInt(i)] || "")
+                                             .join("");
+                                     } else {
+                                         displayUser = convertForDisplay(userAnswer, question.type);
+                                     }
                                      return (
                                          <span
                                              className={`font-bold ${
@@ -379,7 +398,11 @@ function ExamResultPage() {
                                  <div className="flex gap-2 text-sm border-t border-gray-200 pt-2 mt-2">
                                      <span className="font-semibold text-gray-500 uppercase tracking-wider w-24">Đáp án đúng:</span>
                                      <span className="font-bold text-red-600">
-                                         {answerDisplay[qKey] && answerDisplay[qKey].trim() ? answerDisplay[qKey] : convertForDisplay(correctAnswer, question.type)}
+                                         {answerDisplay[qKey] && answerDisplay[qKey].trim()
+                                             ? answerDisplay[qKey]
+                                             : (question.type === 'WR' && Array.isArray(correctAnswer)
+                                                 ? convertForDisplay(correctAnswer, question.type)
+                                                 : convertForDisplay(correctAnswer, question.type))}
                                      </span>
                                  </div>
                              )}
