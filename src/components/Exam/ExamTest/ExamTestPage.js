@@ -254,8 +254,28 @@ const ExamTestPage = () => {
     }
   };
 
+  // Find first unanswered question in current section
+  const findFirstUnansweredQuestion = () => {
+    for (const q of sectionQuestionList) {
+      if (answers[q.question] === undefined || answers[q.question] === '' || 
+          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+        return q;
+      }
+    }
+    return null;
+  };
+
   // Handle continue to next section
   const handleContinue = () => {
+    const unansweredQuestion = findFirstUnansweredQuestion();
+    if (unansweredQuestion) {
+      toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi chuyển sang phần tiếp theo");
+      // Scroll to unanswered question
+      const el = document.getElementById(unansweredQuestion.question);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
     const sectionOrder = getSectionOrder();
     const currentIndex = sectionOrder.indexOf(currentSection);
     if (currentIndex < sectionOrder.length - 1) {
@@ -313,6 +333,16 @@ const ExamTestPage = () => {
   }, []);
 
   const confirmSubmit = async () => {
+    // Final check: ensure all questions are answered
+    for (const q of allQuestions) {
+      if (answers[q.question] === undefined || answers[q.question] === '' || 
+          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+        toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi nộp bài");
+        setShowSubmitModal(false);
+        return;
+      }
+    }
+
     try {
       setLoadingAPI(true);
       const savedAnswers = sessionStorage.getItem("exam-answers");
@@ -344,6 +374,17 @@ const ExamTestPage = () => {
   };
 
   const handleSubmit = () => {
+    // Check if all questions in the entire exam are answered
+    for (const q of allQuestions) {
+      if (answers[q.question] === undefined || answers[q.question] === '' || 
+          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+        toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi nộp bài");
+        // Scroll to unanswered question and navigate to that section
+        const el = document.getElementById(q.question);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
     setShowSubmitModal(true);
   };
 
@@ -408,7 +449,7 @@ const ExamTestPage = () => {
 
       return (
         <div className="space-y-4">
-          {/* Tiles of word parts */}
+          {/* No question text display for WA - only word tiles and arrangement area */}
           <div className="flex flex-wrap gap-2">
             {parts.map((part, idx) => {
               const isSelected = selectedSet.has(idx);
@@ -433,7 +474,7 @@ const ExamTestPage = () => {
                   }}
                   className={`px-4 py-2 rounded-lg font-semibold border-2 transition-all ${
                     isSelected
-                      ? "bg-red-100 border-red-500 text-red-700 line-through"
+                      ? "bg-red-100 border-red-500 text-red-700"
                       : "bg-white border-gray-300 text-gray-800 hover:border-red-400"
                   }`}
                 >
@@ -932,7 +973,7 @@ const ExamTestPage = () => {
                                   <img src={q.imageUrl} alt={q.question} className="max-w-full h-56 object-contain rounded-lg" />
                                 </div>
                               )}
-                              {q.contentQuestions && (
+                              {q.contentQuestions && !(q.type === 'WR' && q.contentQuestions.includes("/")) && (
                                 <div className="mb-4 text-gray-800 leading-relaxed">
                                   <MathRenderer content={q.contentQuestions} />
                                 </div>
@@ -940,7 +981,7 @@ const ExamTestPage = () => {
                               <div className="border-t border-gray-100 pt-4">
                                 <h3 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
                                   <CheckCircle2 className="w-4 h-4 text-red-600" />
-                                  {q.type === 'WR' ? 'Sắp xếp lại câu:' : 'Chọn đáp án:'}
+                                  {q.type === 'WR' && (q.contentQuestions || "").includes("/") ? 'Sắp xếp lại câu:' : q.type === 'WR' ? 'Nhập đáp án:' : 'Chọn đáp án:'}
                                 </h3>
                                 {renderQuestion(q)}
                               </div>
