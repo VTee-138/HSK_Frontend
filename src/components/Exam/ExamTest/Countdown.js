@@ -25,12 +25,22 @@ const Countdown = ({ exam, onComplete, isTitle = false, currentSection = "LISTEN
     const sectionKey = currentSection.toLowerCase();
     // Use section time, if 0 or not set, use total exam time divided by 3 as default
     let sectionTime = skillTimes[sectionKey];
-    if (!sectionTime || sectionTime <= 0) {
-      sectionTime = Math.floor((exam.time || 0) / 3);
+
+    const isUnlimited = exam.time <= 0;
+
+    if (!isUnlimited) {
+      if (!sectionTime || sectionTime <= 0) {
+        sectionTime = Math.floor((exam.time || 0) / 3);
+      }
     }
     
     const sectionStartTime = moment(exam.sectionStartTime || exam.start);
     const sectionEndTime = sectionStartTime.clone().add(sectionTime, "minutes");
+
+    if (isUnlimited) {
+      setRemainingTime(null);
+      return;
+    }
 
     const updateRemainingTime = () => {
       const now = moment();
@@ -100,10 +110,10 @@ const Countdown = ({ exam, onComplete, isTitle = false, currentSection = "LISTEN
           Thời gian còn lại:
         </span>
       )}
-      <span className={`font-mono tracking-widest ${remainingTime <= 300 ? 'text-red-600 font-bold animate-pulse' : 'text-inherit'}`}>
-          {formatTime(remainingTime)}
+      <span className={`font-mono tracking-widest ${remainingTime !== null && remainingTime <= 300 ? 'text-red-600 font-bold animate-pulse' : 'text-inherit'}`}>
+          {remainingTime === null ? 'Không giới hạn' : formatTime(remainingTime)}
       </span>
-      {remainingTime <= 300 && (
+      {remainingTime !== null && remainingTime <= 300 && (
         <span className="text-xs text-red-600 font-semibold animate-pulse">
           🔥 Hết giờ sắp tới!
         </span>

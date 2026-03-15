@@ -93,14 +93,15 @@ const ExamTestPage = () => {
     if (examData) {
       const existingSession = sessionStorage.getItem("exam");
       if (!existingSession) {
-        const init = {
-          _id: examData._id,
-          time: modeParam === "training" && timeParam ? parseInt(timeParam) : examData.time,
-          skillTimes: modeParam === "testing" ? (examData.skillTimes || { listening: 0, reading: 0, writing: 0 }) : { listening: 0, reading: 0, writing: 0 },
-          start: moment(new Date()),
-          currentSection: "LISTENING", // Start with first section
-          sectionStartTime: moment(new Date()), // Track when current section started
-        };
+        const trainingTime = modeParam === "training" ? (timeParam ? parseInt(timeParam, 10) : 0) : examData.time;
+      const init = {
+        _id: examData._id,
+        time: trainingTime,
+        skillTimes: modeParam === "testing" ? (examData.skillTimes || { listening: 0, reading: 0, writing: 0 }) : { listening: 0, reading: 0, writing: 0 },
+        start: moment(new Date()),
+        currentSection: "LISTENING", // Start with first section
+        sectionStartTime: moment(new Date()), // Track when current section started
+      };
         sessionStorage.setItem(SESSION_EXAM_KEY, JSON.stringify(init));
         setSessionExam(init);
       }
@@ -109,15 +110,10 @@ const ExamTestPage = () => {
       if (selectedSectionsParam) {
         const arr = selectedSectionsParam.split(",");
         if (arr.length) setCurrentSection(arr[0]);
+      } else if (visibleSections.length) {
+        setCurrentSection(visibleSections[0]);
       } else {
-        // choose first section that actually has questions — LISTENING first
-        const secs = ['LISTENING', 'READING', 'WRITING'];
-        for (let s of secs) {
-          if (examData.questions?.some(q => (q.section || 'READING') === s)) {
-            setCurrentSection(s);
-            break;
-          }
-        }
+        setCurrentSection("READING");
       }
     }
   }, [examData]);
@@ -150,8 +146,25 @@ const ExamTestPage = () => {
     return examData.questions.filter((q) => q.type !== "MQ");
   }, [examData]);
 
-  // Helper: Get section order
-  const getSectionOrder = () => ['LISTENING', 'READING', 'WRITING'];
+  // Determine which sections should show in the tab bar
+  const visibleSections = useMemo(() => {
+    const order = ["LISTENING", "READING", "WRITING"];
+    const available = order.filter((s) => (sections[s] || []).length > 0);
+
+    if (selectedSectionsParam) {
+      const selected = selectedSectionsParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const filtered = order.filter((s) => selected.includes(s) && available.includes(s));
+      return filtered.length ? filtered : available;
+    }
+
+    return available;
+  }, [sections, selectedSectionsParam]);
+
+  // Helper: Get section order (depends on visibleSections)
+  const getSectionOrder = () => visibleSections;
 
   // Helper: Check if all questions in a section are answered
   const isSectionComplete = (section) => {
@@ -720,7 +733,7 @@ const ExamTestPage = () => {
   if (loading || !examData) return <Loading />;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col relative">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative text-base md:text-lg">
       {/* Testing Mode Banner */}
       {modeParam === "testing" && (
         <div className="bg-red-600 text-white px-4 py-3 flex items-center justify-center gap-2 font-semibold">
@@ -737,13 +750,11 @@ const ExamTestPage = () => {
               {/* Section Tabs with Time Allocation Info — LISTENING first */}
               <div className="space-y-4">
                 <div className="flex gap-4 mb-4 flex-wrap">
-                  {['LISTENING', 'READING', 'WRITING'].map((sec) => {
+                  {visibleSections.map((sec) => {
                     const isAccessible = canAccessSection(sec);
                     const isComplete = isSectionComplete(sec);
                     const hasQuestions = (sections[sec] || []).length > 0;
-                    const skillKey = sec.toLowerCase();
-                    const skillTime = examData?.skillTimes?.[skillKey] || 0;
-                    
+
                     return (
                       <button
                         key={sec}
@@ -760,11 +771,6 @@ const ExamTestPage = () => {
                       >
                         <span className="flex items-center gap-2">
                           {sec === 'READING' ? 'Đọc' : sec === 'LISTENING' ? 'Nghe' : 'Viết'}
-                          {skillTime > 0 && (
-                            <span className={`text-xs px-2 py-1 rounded ${currentSection === sec ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-200 bg-opacity-30'}`}>
-                              {currentSection === sec ? `${skillTime}p (đang thi)` : `${skillTime}p`}
-                            </span>
-                          )}
                           {modeParam === "testing" && hasQuestions && (
                             <span className={`w-2 h-2 rounded-full ${isComplete ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
                           )}
@@ -778,7 +784,7 @@ const ExamTestPage = () => {
               {/* Audio Player for LISTENING section - show at top */}
               {currentSection === 'LISTENING' && examData?.audioUrl && (
                 <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                  <p className="text-sm font-semibold text-blue-900 mb-3">🔊 Nghe tài liệu âm thanh:</p>
+                  <p className="text-sm font-semibold text-blue-900 mb-3">🔊 Nghe audio và điền đáp án:</p>
                   <audio 
 
                     controls 
@@ -859,19 +865,19 @@ const ExamTestPage = () => {
                                   {group.map((subQ, idx) => {
                                     const propText = firstQ.mtOptions[idx] || "";
                                     return (
-                                      <div key={subQ.question} className="space-y-1">
-                                        {propText && (
-                                          <div className="text-sm text-gray-700 leading-relaxed p-2 bg-gray-50 rounded border border-gray-200 text-center">
-                                            <MathRenderer content={propText} />
-                                          </div>
-                                        )}
+                                      <div key={subQ.question} className="flex flex-col gap-2">
                                         <div
                                           id={subQ.question}
-                                          className="flex items-center gap-2 p-1 rounded hover:bg-red-50/30 transition-colors"
+                                          className="flex flex-col md:flex-row items-center gap-2 p-2 rounded hover:bg-red-50/30 transition-colors"
                                         >
                                           <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
                                             {subQ.question}.
                                           </span>
+                                          {propText && (
+                                            <div className="flex-1 text-sm text-gray-700 leading-relaxed">
+                                              <MathRenderer content={propText} />
+                                            </div>
+                                          )}
                                           <input
                                             type="text"
                                             maxLength={1}
@@ -966,7 +972,7 @@ const ExamTestPage = () => {
                           rendered.push(
                             <div key={i} id={q.question} className="p-4 border rounded-lg">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-lg font-bold text-red-600">{q.question}</span>
+                                <span className="text-xl md:text-2xl font-bold text-red-600">{q.question}</span>
                               </div>
                               {q.imageUrl && (
                                 <div className="mb-3 flex justify-center">
@@ -974,7 +980,7 @@ const ExamTestPage = () => {
                                 </div>
                               )}
                               {q.contentQuestions && !(q.type === 'WR' && q.contentQuestions.includes("/")) && (
-                                <div className="mb-4 text-gray-800 leading-relaxed">
+                                <div className="mb-4 text-gray-800 leading-relaxed text-lg md:text-xl break-words">
                                   <MathRenderer content={q.contentQuestions} />
                                 </div>
                               )}

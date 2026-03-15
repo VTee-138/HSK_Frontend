@@ -160,23 +160,24 @@ const UserAllExamHistoryPage = () => {
                               className={`
                                                         inline-block px-3 py-1 rounded-lg font-bold text-sm
                                                         ${
-                                                          (Number(item.total_score) || 0) >= 8
+                                                          (Number((item.total_score ?? item.totalScore ?? item.score) || 0)) >= 8
                                                             ? "bg-green-100 text-green-700"
-                                                            : (Number(item.total_score) || 0) >=
+                                                            : (Number((item.total_score ?? item.totalScore ?? item.score) || 0)) >=
                                                                 5
                                                               ? "bg-yellow-100 text-yellow-700"
                                                               : "bg-red-50 text-red-600"
                                                         }
                                                     `}
                             >
-                              {(item.total_score !== undefined && item.total_score !== null)
-                                ? item.total_score
-                                : "N/A"}
+                              {(() => {
+                                const score = item.total_score ?? item.totalScore ?? item.score;
+                                return (score !== undefined && score !== null) ? score : "N/A";
+                              })()}
                             </span>
                           </td>
                           <td className="p-4 text-center hidden md:table-cell">
                             <div className="text-sm text-gray-600 font-medium">
-                              {item.numberOfCorrectAnswers ?? 0}/
+                              {(item.numberOfCorrectAnswers ?? item.correctCount ?? 0)}/
                               {exam.numberOfQuestions ?? "?"}  câu
                             </div>
                           </td>
