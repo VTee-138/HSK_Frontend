@@ -98,11 +98,21 @@ const ExamNumber = ({
         {/** group by section preserving original order */}
         {(() => {
           const groups = {}; // sec -> array of {q, idx, number}
+          const uniqueSections = new Set(
+            questionList.map((q) => q.section || "READING")
+          );
+          const globalNumbering = uniqueSections.size > 1;
+
+          let globalCounter = 0;
           questionList.forEach((q, idx) => {
             const sec = q.section || "READING";
             if (!groups[sec]) groups[sec] = [];
-            groups[sec].push({ q, idx, number: idx + 1 });
+            const sectionNumber = globalNumbering
+              ? ++globalCounter
+              : groups[sec].length + 1;
+            groups[sec].push({ q, idx, number: sectionNumber });
           });
+
           return Object.entries(groups).map(([sec, items]) => (
             <div key={sec} className="mb-4">
               <div className="mb-2 font-semibold text-sm capitalize">

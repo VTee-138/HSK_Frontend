@@ -262,8 +262,8 @@ const ExamTestPage = () => {
       toast.warning(`⏰ Hết thời gian phần ${currentSection === 'LISTENING' ? 'Nghe' : currentSection === 'READING' ? 'Đọc' : 'Viết'}! Chuyển sang phần tiếp theo.`);
       handleSectionChange(nextSection, true); // Force change when section times out
     } else {
-      // Last section, submit exam immediately without modal
-      confirmSubmit();
+      // Last section, submit exam immediately without forced submit flow
+      confirmSubmit(true);
     }
   };
 
@@ -278,23 +278,32 @@ const ExamTestPage = () => {
     return null;
   };
 
-  // Handle continue to next section
+  // Handle continue to next section or final submit when on last section
   const handleContinue = () => {
     const unansweredQuestion = findFirstUnansweredQuestion();
-    if (unansweredQuestion) {
+
+    if (unansweredQuestion && modeParam === "testing") {
       toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi chuyển sang phần tiếp theo");
-      // Scroll to unanswered question
       const el = document.getElementById(unansweredQuestion.question);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
+    if (unansweredQuestion && modeParam !== "testing") {
+      toast.info("Chế độ luyện thi: Có thể chuyển tiếp khi chưa hoàn thành hết câu hỏi");
+    }
+
     const sectionOrder = getSectionOrder();
     const currentIndex = sectionOrder.indexOf(currentSection);
+
     if (currentIndex < sectionOrder.length - 1) {
       const nextSection = sectionOrder[currentIndex + 1];
       handleSectionChange(nextSection, true);
+      return;
     }
+
+    // Nếu đang ở section cuối cùng (hoặc chỉ duy nhất section được chọn), bấm tiếp tục => mở nộp
+    confirmSubmit();
   };
 
   // Handle prevent audio seeking in testing mode
@@ -345,14 +354,24 @@ const ExamTestPage = () => {
     };
   }, []);
 
-  const confirmSubmit = async () => {
-    // Final check: ensure all questions are answered
-    for (const q of allQuestions) {
-      if (answers[q.question] === undefined || answers[q.question] === '' || 
-          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
-        toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi nộp bài");
-        setShowSubmitModal(false);
-        return;
+  const confirmSubmit = async (force = false) => {
+    // Final check: ensure all questions are answered unless forced timeout submit
+    if (!force) {
+      for (const q of allQuestions) {
+        if (answers[q.question] === undefined || answers[q.question] === '' || 
+            (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+          toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi nộp bài");
+          setShowSubmitModal(false);
+          return;
+        }
+      }
+    } else {
+      const incomplete = allQuestions.some((q) =>
+        answers[q.question] === undefined || answers[q.question] === '' ||
+        (Array.isArray(answers[q.question]) && answers[q.question].length === 0)
+      );
+      if (incomplete) {
+        toast.warning("Ghi chú: bài thi sẽ được nộp tự động mặc dù một số câu chưa được trả lời.");
       }
     }
 
@@ -835,15 +854,15 @@ const ExamTestPage = () => {
                           const leftText = firstQ.contentQuestions || "";
                           const hasLeftContent = leftText || firstQ.imageUrl;
                           rendered.push(
-                            <div key={firstQ.question} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                            <div key={firstQ.question} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm h-full">
                               {/* Split Layout: Left=Text+Image, Right=Propositions+Inputs */}
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 h-auto">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 h-full">
                                 {/* LEFT: Text and/or Image merged */}
-                                <div className="bg-gray-50 border-r border-gray-200 p-6 flex flex-col items-center justify-center">
+                                <div className="bg-gray-50 border-r border-gray-200 p-8 flex flex-col justify-between items-start h-full gap-4">
                                   {hasLeftContent ? (
                                     <>
                                       {leftText && (
-                                        <div className="mb-4 text-gray-800 leading-relaxed font-medium text-center">
+                                        <div className="mb-4 text-gray-800 leading-relaxed font-medium text-left w-full">
                                           <MathRenderer content={leftText} />
                                         </div>
                                       )}
@@ -860,8 +879,8 @@ const ExamTestPage = () => {
                                   )}
                                 </div>
 
-                                {/* RIGHT: Propositions + answer inputs */}
-                                <div className="p-4 flex flex-col gap-2">
+                             {/* RIGHT: Propositions + answer inputs */}
+                                <div className="p-6 flex flex-col justify-between h-full gap-2 text-base">
                                   {group.map((subQ, idx) => {
                                     const propText = firstQ.mtOptions[idx] || "";
                                     return (
@@ -870,11 +889,11 @@ const ExamTestPage = () => {
                                           id={subQ.question}
                                           className="flex flex-col md:flex-row items-center gap-2 p-2 rounded hover:bg-red-50/30 transition-colors"
                                         >
-                                          <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
+                                          <span className="text-base font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
                                             {subQ.question}.
                                           </span>
                                           {propText && (
-                                            <div className="flex-1 text-sm text-gray-700 leading-relaxed">
+                                            <div className="flex-1 text-base text-gray-700 leading-relaxed">
                                               <MathRenderer content={propText} />
                                             </div>
                                           )}
@@ -908,47 +927,53 @@ const ExamTestPage = () => {
                             </div>
                           );
                         } else {
-                          // MT without propositions (old format): use original layout
+                          // MT without propositions (old format): align layout with MT with propositions
+                          const leftText = firstQ.contentQuestions || "";
+                          const hasLeftContent = leftText || firstQ.imageUrl;
                           rendered.push(
-                            <div key={firstQ.question} className="p-4 border rounded-lg">
-                              {/* Description if any */}
-                              {firstQ.contentQuestions && (
-                                <div className="mb-4 text-gray-800 leading-relaxed font-medium">
-                                  <MathRenderer content={firstQ.contentQuestions} />
-                                </div>
-                              )}
-                              {/* Image on top, inputs below */}
-                              <div className="flex flex-col gap-6">
-                                {/* Image side */}
-                                {firstQ.imageUrl && (
-                                  <div className="flex justify-center">
-                                    <img
-                                      src={firstQ.imageUrl}
-                                      alt="matching"
-                                      className="max-w-full h-auto rounded-lg border border-gray-100"
-                                    />
-                                  </div>
-                                )}
-                                {/* Numbered input boxes */}
-                                <div className="flex flex-col gap-0 w-full">
-                                  {group.map((subQ) => (
-                                    <div key={subQ.question} id={subQ.question} className="flex items-center gap-2">
-                                      <span className="text-sm font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
-                                        {subQ.question}
-                                      </span>
-                                      <div className="flex-1 flex justify-center">
-                                        <input
-                                          type="text"
-                                          maxLength={1}
-                                          className={`border-2 rounded-lg p-1 w-16 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
-                                              ? 'border-red-500 bg-red-50 text-red-700'
-                                              : 'border-gray-300 focus:border-red-500'
-                                            } focus:outline-none mx-auto`}
-                                          placeholder="A-F"
-                                          value={typeof answers[subQ.question] === 'string' ? answers[subQ.question] : ''}
-                                          onChange={(e) => handleAnswerChange(subQ.question, e.target.value.toUpperCase())}
+                            <div key={firstQ.question} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm h-full">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 h-full">
+                                {/* LEFT: Text and/or Image merged */}
+                                <div className="bg-gray-50 border-r border-gray-200 p-8 flex flex-col justify-between items-start h-full gap-4">
+                                  {hasLeftContent ? (
+                                    <>
+                                      {leftText && (
+                                        <div className="mb-4 text-gray-800 leading-relaxed font-medium text-left w-full">
+                                          <MathRenderer content={leftText} />
+                                        </div>
+                                      )}
+                                      {firstQ.imageUrl && (
+                                        <img
+                                          src={firstQ.imageUrl}
+                                          alt="matching"
+                                          className="max-w-full h-auto rounded-lg border border-gray-200"
                                         />
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="text-gray-400 italic text-center">Không có dữ liệu</div>
+                                  )}
+                                </div>
+
+                                {/* RIGHT: Inputs in card list like MT with propositions */}
+                                <div className="p-6 flex flex-col justify-between h-full gap-2 text-base">
+                                  {group.map((subQ) => (
+                                    <div key={subQ.question} id={subQ.question} className="flex flex-col gap-2 p-2 border border-gray-200 rounded-lg bg-white">
+                                      <div className="text-2xl font-extrabold text-red-600 tracking-tight">
+                                        {subQ.question}.
                                       </div>
+                                      <input
+                                        type="text"
+                                        maxLength={1}
+                                        className={`border-2 rounded-lg p-2 w-24 text-center font-extrabold uppercase text-base transition-colors ${
+                                          answers[subQ.question]
+                                            ? "border-red-500 bg-red-50 text-red-700"
+                                            : "border-gray-300 focus:border-red-500"
+                                        } focus:outline-none`}
+                                        placeholder="A-F"
+                                        value={typeof answers[subQ.question] === "string" ? answers[subQ.question] : ""}
+                                        onChange={(e) => handleAnswerChange(subQ.question, e.target.value.toUpperCase())}
+                                      />
                                     </div>
                                   ))}
                                 </div>
