@@ -6,8 +6,10 @@ import {
   RouterProvider,
 } from "react-router-dom";
 
-import { ToastContainer } from "react-toastify";
+import { useEffect, useRef } from "react";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { get } from "./common/apiClient";
 import PrivateRoute from "./routes/PrivateRoute";
 import PublicRoute from "./routes/PublicRoute";
 import GuestRoute from "./routes/GuestRoute";
@@ -67,6 +69,47 @@ const router = createBrowserRouter(
   )
 );
 function App() {
+  const currentVersionRef = useRef(null);
+  const VERSION_CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAppVersion = async () => {
+      try {
+        const res = await get("/version");
+        const serverVersion = res?.version || "0.0.0";
+
+        if (!isMounted) return;
+
+        if (!currentVersionRef.current) {
+          currentVersionRef.current = serverVersion;
+          console.info("App version initialized", serverVersion);
+          return;
+        }
+
+        if (serverVersion !== currentVersionRef.current) {
+          console.info("New app version detected", serverVersion, "old", currentVersionRef.current);
+          toast.info("Phát hiện phiên bản mới. Tự động nạp lại trang...");
+          currentVersionRef.current = serverVersion;
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }
+      } catch (error) {
+        console.warn("Không thể kiểm tra version", error);
+      }
+    };
+
+    checkAppVersion();
+    const interval = setInterval(checkAppVersion, VERSION_CHECK_INTERVAL_MS);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   return (
     <div className="App">
       <RouterProvider router={router} />
