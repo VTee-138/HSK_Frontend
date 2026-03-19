@@ -847,7 +847,9 @@ const ExamTestPage = () => {
                         }
                         // First item in group has imageUrl and contentQuestions
                         const firstQ = group[0];
-                        const hasMtOptions = Array.isArray(firstQ.mtOptions) && firstQ.mtOptions.length > 0;
+                        const allMtOptions = Array.isArray(firstQ.mtOptions) ? firstQ.mtOptions : [];
+                        const hasMtOptions = allMtOptions.length > 0;
+                        const showOptionList = allMtOptions.length > group.length;
 
                         if (hasMtOptions) {
                           // MT Reading with propositions: text+image left, propositions+inputs right
@@ -880,23 +882,33 @@ const ExamTestPage = () => {
                                 </div>
 
                              {/* RIGHT: Propositions + answer inputs */}
-                                <div className="p-6 flex flex-col justify-between h-full gap-2 text-base">
-                                  {group.map((subQ, idx) => {
-                                    const propText = firstQ.mtOptions[idx] || "";
-                                    return (
-                                      <div key={subQ.question} className="flex flex-col gap-2">
-                                        <div
-                                          id={subQ.question}
-                                          className="flex flex-col md:flex-row items-center gap-2 p-2 rounded hover:bg-red-50/30 transition-colors"
-                                        >
-                                          <span className="text-base font-bold text-red-600 flex-shrink-0 whitespace-nowrap">
-                                            {subQ.question}.
-                                          </span>
-                                          {propText && (
-                                            <div className="flex-1 text-base text-gray-700 leading-relaxed">
-                                              <MathRenderer content={propText} />
-                                            </div>
-                                          )}
+                                <div className="p-6 h-full gap-2 text-base">
+                                  {showOptionList && (
+                                    <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-white">
+                                      <div className="text-sm font-semibold text-gray-700 mb-2">Danh sách lựa chọn</div>
+                                      {allMtOptions.map((opt, i) => (
+                                        <div key={`opt-${i}`} className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
+                                          <span className="w-6 font-bold text-red-600">{String.fromCharCode(65 + i)}.</span>
+                                          <span>{opt}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col justify-between h-full gap-2">
+                                    {group.map((subQ, idx) => {
+                                      const propText = !showOptionList ? allMtOptions[idx] || "" : "";
+                                      return (
+                                        <div key={subQ.question} className="flex flex-col gap-2 p-2 rounded hover:bg-red-50/30 transition-colors">
+                                          <div className="flex flex-wrap gap-2 items-center">
+                                            <span className="text-base font-bold text-red-600 whitespace-nowrap">
+                                              {subQ.question}.
+                                            </span>
+                                            {propText && (
+                                              <div className="text-base text-gray-700 leading-relaxed flex-1">
+                                                <MathRenderer content={propText} />
+                                              </div>
+                                            )}
+                                          </div>
                                           <input
                                             type="text"
                                             maxLength={1}
@@ -919,9 +931,9 @@ const ExamTestPage = () => {
                                             }
                                           />
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               </div>
                             </div>

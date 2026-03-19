@@ -34,9 +34,9 @@ const Exams = () => {
       const statusParam = selectedStatus === "ALL" ? "" : selectedStatus;
 
       const response = await getExam(page, 6, "", typeParam, statusParam);
-      if (response && response.data) {
+      if (response) {
         setExams(response.data || []);
-        setTotalPages(response?.data?.totalPages || 0);
+        setTotalPages(response?.totalPages || 0);
       }
     } catch (error) {
       const message = error?.response?.data?.message;
@@ -50,16 +50,18 @@ const Exams = () => {
     handleFetch();
   }, [page, selectedType, selectedStatus]);
 
-  const handleChangePage = (page) => {
-    setPage(page);
+  const handleChangePage = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
+    }
   };
 
   const handleNextPage = () => {
-    setPage(page + 1);
+    setPage((prev) => Math.min(prev + 1, totalPages));
   };
 
   const handlePrevPage = () => {
-    setPage(page - 1);
+    setPage((prev) => Math.max(prev - 1, 1));
   };
 
   return (
