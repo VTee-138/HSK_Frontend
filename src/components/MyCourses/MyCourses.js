@@ -18,15 +18,7 @@ import CourseCard from "../Course/CourseCard";
 import PaginationCustom from "../PaginationCustom";
 
 export default function MyCourses() {
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    school: "",
-    province: "",
-  });
   const [loading, setLoading] = useState(false);
-  const [password, setPassword] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState([]);
   const [coursesData, setCoursesData] = useState([]);

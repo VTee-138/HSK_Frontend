@@ -61,7 +61,7 @@ const BlogsPage = () => {
     setSearchInput(query);
 
     fetchBlogs(page, category, tag, query);
-  }, [location.search]);
+  }, [location.search, fetchBlogs]);
 
   // Debounce search input
   useEffect(() => {
@@ -77,7 +77,7 @@ const BlogsPage = () => {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchInput]);
+  }, [searchInput, searchQuery, selectedCategory, selectedTag, updateURL]);
 
   const fetchCategories = async () => {
     try {

@@ -11,6 +11,7 @@ const BlogMathRenderer = ({ content }) => {
     if (contentRef.current && content) {
       renderMath();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
 
   // Utility function to clean HTML from LaTeX formula

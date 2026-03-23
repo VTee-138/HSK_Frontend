@@ -24,13 +24,12 @@ export default function CheckoutPage() {
     content: "DKHSA_0775796391 Pham Minh Tuan",
   });
 
-  const [buyer, setBuyer] = useState({
+  const [buyer] = useState({
     name: getUserInfo()?.username,
     email: getUserInfo()?.email,
   });
 
-  const username = "PHAM VAN TUAN";
-  useEffect(() => {
+  useEffect(() => {  // eslint-disable-line react-hooks/exhaustive-deps
     const handleFetch = async () => {
       try {
         setLoading(true);

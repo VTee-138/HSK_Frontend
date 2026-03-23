@@ -1,4 +1,4 @@
-import { get, post, put } from "../common/apiClient";
+import { get, put } from "../common/apiClient";
 
 const PATH_TEST = "/user";
 

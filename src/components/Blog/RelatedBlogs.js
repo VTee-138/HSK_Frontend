@@ -24,6 +24,7 @@ const RelatedBlogs = ({ currentBlog, maxItems = 3 }) => {
     if (currentBlog) {
       fetchRelatedBlogs();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBlog]);
 
   const fetchRelatedBlogs = async () => {

@@ -34,9 +34,11 @@ export const getBlogTags = async () => {
   return await get(PATH_BLOG + "/tags");
 };
 
-export default {
+const blogService = {
   getPublishedBlogs,
   getBlogBySlug,
   getBlogCategories,
   getBlogTags,
 };
+
+export default blogService;

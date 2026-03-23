@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  BookOpen, 
   User, 
   Layout, 
   LogOut, 
-  GraduationCap,
   MoreVertical,
   Rocket,
 } from 'lucide-react';

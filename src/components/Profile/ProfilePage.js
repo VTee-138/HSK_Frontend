@@ -12,7 +12,6 @@ import {
   updatePassword,
 } from "../../services/UserService";
 import { toast } from "react-toastify";
-import moment from "moment";
 import Loading from "../Loading";
 import Footer from "../Footer/Footer";
 import { Link } from "react-router-dom";

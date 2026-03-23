@@ -108,7 +108,7 @@ function App() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [VERSION_CHECK_INTERVAL_MS]);
 
   return (
     <div className="App">

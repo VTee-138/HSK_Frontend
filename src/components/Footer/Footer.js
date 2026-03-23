@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Facebook, Music, MessageCircle, Star } from "lucide-react";
+import { Facebook, Music } from "lucide-react";
 import { Link } from "react-router-dom";
 export default function Footer() {
   return (
@@ -38,7 +38,7 @@ export default function Footer() {
                 <Facebook className="h-4 w-4" />
               </Link>
               <a
-                href="#"
+                href="/"
                 className="w-8 h-8 bg-pink-600 rounded flex items-center justify-center hover:bg-pink-700 transition-colors"
               >
                 <Music className="h-4 w-4" />

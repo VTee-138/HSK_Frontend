@@ -5,7 +5,6 @@ import { toast } from "react-toastify";
 
 const Countdown = ({ exam, onComplete, isTitle = false, currentSection = "LISTENING", onSectionTimeout }) => {
   const [remainingTime, setRemainingTime] = useState(null);
-  const [completingTime, setCompletingTime] = useState(null);
   const hasChecked = useRef(false);
   const hasWarned5Min = useRef(false);
   const onCompleteRef = useRef(onComplete);
@@ -53,7 +52,6 @@ const Countdown = ({ exam, onComplete, isTitle = false, currentSection = "LISTEN
       const elapsed = Math.max(0, now.diff(sectionStartTime, "seconds"));
       const fixedElapsed = Math.min(elapsed, sectionTime * 60);
 
-      setCompletingTime(fixedElapsed);
       sessionStorage.setItem(
         "exam_completing_time",
         JSON.stringify(fixedElapsed * 1000)

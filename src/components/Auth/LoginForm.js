@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, GraduationCap } from "lucide-react";
 import { toast } from "react-toastify";
 import { login } from "../../services/AuthService";
