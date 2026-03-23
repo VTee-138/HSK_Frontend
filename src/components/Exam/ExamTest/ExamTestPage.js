@@ -391,6 +391,7 @@ const ExamTestPage = () => {
         examCompledTime: JSON.parse(examCompledTime),
         examId: id,
         access: examData.access,
+        selectedSections: visibleSections,
       });
 
       toast.success(res.message);

@@ -169,8 +169,15 @@ function ExamResultPage() {
 
   const questionList = useMemo(() => {
     if (!examData) return [];
-    return examData?.questions.filter((q) => q.type !== "MQ") || [];
-  }, [examData]);
+    let questions = examData?.questions.filter((q) => q.type !== "MQ") || [];
+    
+    // Filter questions based on selected sections (for training mode)
+    if (resultDetail?.selectedSections && Array.isArray(resultDetail.selectedSections) && resultDetail.selectedSections.length > 0) {
+      questions = questions.filter(q => resultDetail.selectedSections.includes(q.section || 'READING'));
+    }
+    
+    return questions;
+  }, [examData, resultDetail]);
 
   const derivedCorrectCount = useMemo(() => {
     return Object.values(resultMap).filter((v) => v === true).length;
