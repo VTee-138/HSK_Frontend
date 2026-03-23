@@ -92,7 +92,13 @@ function ExamResultPage() {
       if (!missing) {
         try {
           examResponse = await getExamDetail(examId);
-          setExamData(examResponse?.data);
+          const data = examResponse?.data;
+          // Normalize audio URL if it's relative (from DB)
+          if (data && data.audioUrl && !data.audioUrl.startsWith("http")) {
+            const baseUrl = process.env.REACT_APP_API_BASE_URL?.replace("/api/v2", "") || "http://localhost:4000";
+            data.audioUrl = `${baseUrl}${data.audioUrl}`;
+          }
+          setExamData(data);
         } catch (e) {
           console.warn("Failed to fetch exam detail, marking missing", e);
           setExamData(null);

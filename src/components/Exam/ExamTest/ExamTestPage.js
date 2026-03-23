@@ -64,14 +64,21 @@ const ExamTestPage = () => {
       const responseExam = await getExamDetail(id);
       const data = responseExam?.data;
       if (data) {
+        // Normalize audio URL if it's relative (from DB)
+        const audioUrl = data?.audioUrl && !data.audioUrl.startsWith("http")
+          ? `${process.env.REACT_APP_API_BASE_URL?.replace("/api/v2", "") || "http://localhost:4000"}${data.audioUrl}`
+          : data?.audioUrl;
+        
+        const normalizedData = { ...data, audioUrl };
+        
         if (selectedSectionsParam) {
           const sectionsToKeep = selectedSectionsParam.split(",");
-          const filteredQuestions = data.questions.filter((q) =>
+          const filteredQuestions = normalizedData.questions.filter((q) =>
             sectionsToKeep.includes(q.section)
           );
-          setExamData({ ...data, questions: filteredQuestions });
+          setExamData({ ...normalizedData, questions: filteredQuestions });
         } else {
-          setExamData(data);
+          setExamData(normalizedData);
         }
       }
     } catch (error) {

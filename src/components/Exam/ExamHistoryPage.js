@@ -26,7 +26,14 @@ const ExamHistoryPage = () => {
             // eslint-disable-next-line no-console
             console.log('[fetchData] resHistory:', resHistory, 'resExam:', resExam);
             setHistory(resHistory?.data || []);
-            setExamData(resExam?.data);
+            
+            let examData = resExam?.data;
+            // Normalize audio URL if it's relative (from DB)
+            if (examData && examData.audioUrl && !examData.audioUrl.startsWith("http")) {
+              const baseUrl = process.env.REACT_APP_API_BASE_URL?.replace("/api/v2", "") || "http://localhost:4000";
+              examData.audioUrl = `${baseUrl}${examData.audioUrl}`;
+            }
+            setExamData(examData);
 
         } catch (error) {
             console.error("Error fetching history:", error);

@@ -91,6 +91,11 @@ const ExamDetailPage = () => {
       const responseExam = await getExamDetail(id);
       const data = responseExam?.data;
       if (data) {
+        // Normalize audio URL if it's relative (from DB)
+        if (data.audioUrl && !data.audioUrl.startsWith("http")) {
+          const baseUrl = process.env.REACT_APP_API_BASE_URL?.replace("/api/v2", "") || "http://localhost:4000";
+          data.audioUrl = `${baseUrl}${data.audioUrl}`;
+        }
         setExamData(data);
         // Pre-select all sections if available
         if (data.questions && data.questions.length > 0) {
