@@ -132,11 +132,11 @@ function ExamResultPage() {
               total_score:
                 prev.total_score && prev.total_score !== 0
                   ? prev.total_score
-                  : examData && examData.numberOfQuestions
+                  : examResponse?.data
                   ? parseFloat(
                       (
-                        (correctCount / examData.numberOfQuestions) *
-                        (examData.totalScore || 10)
+                        (correctCount / ((examResponse.data.questions || []).reduce((t, q) => q.type === "DL" && Array.isArray(q.subQuestions) ? t + q.subQuestions.length : t + 1, 0) || examResponse.data.numberOfQuestions || 1)) *
+                        (examResponse.data.totalScore || 10)
                       ).toFixed(2)
                     )
                   : 0,
@@ -179,6 +179,44 @@ function ExamResultPage() {
     return questions;
   }, [examData, resultDetail]);
 
+  const actualTotalQuestions = useMemo(() => {
+    return questionList.reduce((total, q) => {
+      if (q.type === "DL" && Array.isArray(q.subQuestions)) return total + q.subQuestions.length;
+      return total + 1;
+    }, 0);
+  }, [questionList]);
+
+  // Flattened list: DL sub-questions expanded individually — used for ExamNumber sidebar
+  const flatQuestionList = useMemo(() => {
+    const flat = [];
+    questionList.forEach(q => {
+      if (q.type === "DL" && Array.isArray(q.subQuestions)) {
+        q.subQuestions.forEach(sq => flat.push({ ...sq, _parentDLKey: q.question, section: q.section }));
+      } else {
+        flat.push(q);
+      }
+    });
+    return flat;
+  }, [questionList]);
+
+  // Map top-level question key -> numbering info (keyed by PARENT, never sub-question keys, so no collision)
+  // DL: { type:'dl', startNum } — sub-question at index i gets number startNum+i
+  // Standalone: { type:'single', num }
+  const questionNumberMap = useMemo(() => {
+    const map = {};
+    let counter = 1;
+    questionList.forEach(q => {
+      if (q.type === "DL" && Array.isArray(q.subQuestions)) {
+        map[q.question] = { type: 'dl', startNum: counter };
+        counter += q.subQuestions.length;
+      } else {
+        map[q.question] = { type: 'single', num: counter };
+        counter++;
+      }
+    });
+    return map;
+  }, [questionList]);
+
   const derivedCorrectCount = useMemo(() => {
     return Object.values(resultMap).filter((v) => v === true).length;
   }, [resultMap]);
@@ -189,20 +227,25 @@ function ExamResultPage() {
   const displayScore =
     resultDetail && resultDetail.total_score && resultDetail.total_score !== 0
       ? resultDetail.total_score
-      : examData && examData.numberOfQuestions
+      : actualTotalQuestions
       ? parseFloat(
-          ((derivedCorrectCount / examData.numberOfQuestions) *
-            (examData.totalScore || 10)).toFixed(2)
+          ((derivedCorrectCount / actualTotalQuestions) *
+            (examData?.totalScore || 10)).toFixed(2)
         )
       : 0;
 
 
-  const scrollToQuestion = (index) => {
-      const questionKey = questionList[index]?.question;
-      const element = document.getElementById(`question-${index}`);
+  const scrollToQuestion = (flatIndex) => {
+      const q = flatQuestionList[flatIndex];
+      if (!q) return;
+      const parentKey = q._parentDLKey;
+      const domIdx = parentKey
+        ? questionList.findIndex(p => p.question === parentKey)
+        : questionList.findIndex(p => p.question === q.question);
+      const element = document.getElementById(`question-${domIdx >= 0 ? domIdx : flatIndex}`);
       if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setCurrentQuestionReview(questionKey);
+          setCurrentQuestionReview(q.question);
       }
   };
 
@@ -306,7 +349,7 @@ function ExamResultPage() {
                      <div className="w-px h-10 bg-gray-200"></div>
                      <div className="text-center">
                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Số câu đúng</p>
-                         <p className="text-2xl font-black text-gray-800">{displayCorrectCount}/{examData?.numberOfQuestions || 0}</p>
+                         <p className="text-2xl font-black text-gray-800">{displayCorrectCount}/{actualTotalQuestions}</p>
                      </div>
                       <div className="w-px h-10 bg-gray-200"></div>
                      <div className="text-center">
@@ -334,11 +377,87 @@ function ExamResultPage() {
                  // Single question rendering
                  const question = item.question;
                  const index = item.index;
-                 const qKey = question.question; // "Câu 1"
-                 const isCorrect = resultMap[qKey]; // true/false
-                 const userAnswer = resultDetail.userAnswers?.[qKey]; // "A" or "True"
+                 const qKey = question.question;
+                 const isCorrect = resultMap[qKey];
+                 const userAnswer = resultDetail.userAnswers?.[qKey];
                  const correctAnswer = question.correctAnswer || question.answer;
                  const isCurrentHighlight = currentQuestionReview === qKey;
+
+                 // ── DL (Gap Filling / Reading Comprehension) ──
+                 if (question.type === "DL" && Array.isArray(question.subQuestions)) {
+                   const dlNum = questionNumberMap[question.question];
+                   const startNum = dlNum?.startNum ?? 1;
+                   const endNum = startNum + question.subQuestions.length - 1;
+                   return (
+                     <div id={`question-${index}`} key={index} className="bg-white rounded-2xl border border-gray-200 overflow-hidden scroll-mt-32">
+                       <div className="flex flex-col lg:flex-row" style={{ height: "78vh" }}>
+                         {/* LEFT: Reading Passage */}
+                         <div className="w-full lg:w-1/2 bg-blue-50 border-r border-gray-200 p-6 overflow-y-auto">
+                           <p className="text-xs font-bold uppercase text-red-600 tracking-wide mb-4">
+                             Bài đọc ({startNum}–{endNum})
+                           </p>
+                           <div className="text-gray-800 leading-relaxed whitespace-pre-wrap text-base font-medium">
+                             {question.contentQuestions}
+                           </div>
+                         </div>
+                         {/* RIGHT: Sub-questions */}
+                         <div className="w-full lg:w-1/2 p-6 overflow-y-auto space-y-4 bg-white">
+                           <p className="text-xs font-bold uppercase text-gray-500 tracking-wide mb-2">
+                             ✏️ Câu hỏi ({startNum}–{endNum})
+                           </p>
+                           {question.subQuestions.map((sq, sqIdx) => {
+                             const sqNum = startNum + sqIdx;
+                             const sqCorrect = resultMap[sq.question];
+                             const sqUserAnswer = resultDetail.userAnswers?.[sq.question];
+                             const sqCorrectAnswer = sq.correctAnswer;
+                             const sqIsHighlighted = currentQuestionReview === sq.question;
+                             const sqIsBlank = sqUserAnswer === undefined || sqUserAnswer === null || sqUserAnswer === "";
+                             return (
+                               <div
+                                 key={sq.question}
+                                 className={`border-2 rounded-xl p-4 transition-all ${
+                                   sqCorrect === true ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/20'
+                                 } ${sqIsHighlighted ? 'ring-2 ring-red-400 ring-offset-1' : ''}`}
+                               >
+                                 <div className="flex items-start gap-3 mb-3">
+                                   <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm ${
+                                     sqCorrect === true ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                   }`}>{sqNum}</span>
+                                   <span className="text-gray-800 text-sm leading-relaxed flex-1">{sq.contentQuestions}</span>
+                                   <span className="flex-shrink-0">
+                                     {sqCorrect === true ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-500" />}
+                                   </span>
+                                 </div>
+                                 <div className="space-y-1 mb-2">
+                                   {["A", "B", "C", "D"].map(opt => {
+                                     const optContent = sq[`contentAnswer${opt}`];
+                                     if (!optContent) return null;
+                                     const isUserChoice = sqUserAnswer === opt;
+                                     const isCorrectChoice = (answerDisplay[sq.question] || sqCorrectAnswer) === opt;
+                                     return (
+                                       <div key={opt} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
+                                         isCorrectChoice ? 'bg-green-100 text-green-800 font-semibold' :
+                                         isUserChoice ? 'bg-red-100 text-red-800' : 'text-gray-600'
+                                       }`}>
+                                         <span className="font-bold">{opt}.</span>
+                                         <span>{optContent}</span>
+                                         {isCorrectChoice && <CheckCircle2 className="w-4 h-4 text-green-600 ml-auto" />}
+                                         {isUserChoice && !isCorrectChoice && <XCircle className="w-4 h-4 text-red-500 ml-auto" />}
+                                       </div>
+                                     );
+                                   })}
+                                 </div>
+                               </div>
+                             );
+                           })}
+                         </div>
+                       </div>
+                     </div>
+                   );
+                 }
+
+                 // ── Regular single question ──
+                 const globalNum = questionNumberMap[qKey]?.num ?? (index + 1);
 
                  return (
                      <div 
@@ -354,7 +473,7 @@ function ExamResultPage() {
                                 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
                                 ${isCorrect === true ? 'bg-green-100 text-green-600' : isCorrect === false ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}
                              `}>
-                                 {index + 1}
+                                 {globalNum}
                              </div>
                              <div className="flex-1 pt-1">
                                  <h3 className="text-gray-900 font-medium text-lg leading-relaxed">
@@ -634,8 +753,8 @@ function ExamResultPage() {
                      </h3>
                      
                      <ExamNumber 
-                        totalQuestions={questionList.length}
-                        questionList={questionList}
+                        totalQuestions={flatQuestionList.length}
+                        questionList={flatQuestionList}
                         hasStarted={true}
                         resultMode={true}
                         resultMap={resultMap}
@@ -648,7 +767,7 @@ function ExamResultPage() {
                              <span className="w-3 h-3 bg-green-100 border border-green-200 rounded"></span> Đúng ({displayCorrectCount})
                          </div>
                          <div className="flex items-center gap-2">
-                             <span className="w-3 h-3 bg-red-50 border border-red-200 rounded"></span> Sai ({(examData?.numberOfQuestions || 0) - (resultDetail?.numberOfCorrectAnswers || 0)})
+                             <span className="w-3 h-3 bg-red-50 border border-red-200 rounded"></span> Sai ({actualTotalQuestions - (resultDetail?.numberOfCorrectAnswers || derivedCorrectCount)})
                          </div>
                      </div>
                  </div>

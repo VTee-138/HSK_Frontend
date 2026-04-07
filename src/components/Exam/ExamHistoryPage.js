@@ -149,7 +149,7 @@ const ExamHistoryPage = () => {
                                                 </td>
                                                 <td className="p-4 text-center hidden md:table-cell">
                                                     <div className="text-sm text-gray-600 font-medium">
-                                                        {(item.numberOfCorrectAnswers ?? item.correctCount ?? 0)}/{examData.numberOfQuestions} câu đúng
+                                                        {(item.numberOfCorrectAnswers ?? item.correctCount ?? 0)}/{(examData.questions || []).reduce((t, q) => q.type === "DL" && Array.isArray(q.subQuestions) ? t + q.subQuestions.length : t + 1, 0) || examData.numberOfQuestions} câu đúng
                                                     </div>
                                                 </td>
                                                 <td className="p-4 text-center hidden md:table-cell">

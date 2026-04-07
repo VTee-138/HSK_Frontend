@@ -10,7 +10,7 @@ import { getExam } from "../../services/ExamService";
 import { Stack } from "@mui/material";
 import PaginationCustom from "../PaginationCustom";
 
-const TYPES = ["ALL", "HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6"];
+const TYPES = ["ALL", "HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6", "D4"];
 const STATUSES = [
   { value: "ALL", label: "Tất cả" },
   { value: "DONE", label: "Đã làm" },

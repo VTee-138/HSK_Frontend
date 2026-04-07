@@ -51,13 +51,13 @@ const ExamCard = ({ item }) => {
             <Users size={14} />
             <span className="text-xs">{item?.numberOfTest || 0} lượt</span>
           </div>
-          <div className="flex items-center justify-end gap-2 text-gray-500">
+          <div className="flex items-center gap-2 text-gray-500">
             <Clock size={14} />
-            <span className="text-xs">{item?.time || 0}p</span>
+            <span className="text-xs">{item?.time === 0 ? "∞" : `${item?.time || 0}p`}</span>
           </div>
           <div className="flex items-center gap-2 text-gray-500">
             <FileQuestion size={14} />
-            <span className="text-xs">{item?.numberOfQuestions || 0} câu</span>
+            <span className="text-xs">{(item?.questions || []).reduce((t, q) => q.type === "DL" && Array.isArray(q.subQuestions) ? t + q.subQuestions.length : t + 1, 0) || item?.numberOfQuestions || 0} câu</span>
           </div>
         </div>
 
