@@ -191,6 +191,11 @@ const ExamDetailPage = () => {
 
   if (loading || !examData) return <Loading />;
 
+  const actualQuestionCount = (examData.questions || []).reduce((total, q) => {
+    if (q.type === "DL" && Array.isArray(q.subQuestions)) return total + q.subQuestions.length;
+    return total + 1;
+  }, 0);
+
   const availableSections = examData?.questions
     ? [
         ...new Set(examData.questions.map((q) => q.section).filter(Boolean)),
@@ -221,7 +226,7 @@ const ExamDetailPage = () => {
                   <Clock size={14} /> {examData.time} phút
                 </span>
                 <span className="text-gray-400 text-sm font-medium flex items-center gap-1">
-                  <BookOpen size={14} /> {examData.numberOfQuestions} câu hỏi
+                  <BookOpen size={14} /> {actualQuestionCount} câu hỏi
                 </span>
               </div>
 
@@ -348,7 +353,7 @@ const ExamDetailPage = () => {
                                     ${scope === "full" ? "bg-red-600 text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}
                                 `}
                   >
-                    Full Test ({examData.numberOfQuestions} câu)
+                    Full Test ({actualQuestionCount} câu)
                   </button>
                   <button
                     onClick={() => setScope("sections")}

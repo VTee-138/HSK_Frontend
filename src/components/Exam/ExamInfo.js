@@ -39,7 +39,7 @@ const ExamInfo = ({ handleStartExam, handleViewHistory, examData }) => {
             <span className="text-gray-600 text-sm font-medium">Thời gian</span>
           </div>
           <span className="font-bold text-gray-900 text-sm">
-            {examData?.time} phút
+            {examData?.time === 0 ? "Không giới hạn" : `${examData?.time ?? 60} phút`}
           </span>
         </div>
 
@@ -65,7 +65,7 @@ const ExamInfo = ({ handleStartExam, handleViewHistory, examData }) => {
             <span className="text-gray-600 text-sm font-medium">Số câu hỏi</span>
           </div>
           <span className="font-bold text-gray-900 text-sm">
-            {examData?.numberOfQuestions} câu
+            {(examData?.questions || []).reduce((t, q) => q.type === "DL" && Array.isArray(q.subQuestions) ? t + q.subQuestions.length : t + 1, 0) || examData?.numberOfQuestions} câu
           </span>
         </div>
 

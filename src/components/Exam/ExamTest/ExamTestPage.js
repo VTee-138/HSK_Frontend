@@ -25,6 +25,119 @@ import ConfirmModal from "../../ConfirmModal";
 const STORAGE_KEY = "exam-answers";
 const SESSION_EXAM_KEY = "exam"; // key used for exam session data in sessionStorage
 
+// ─── Mock Data for D4 exam (used when server is offline) ───────────────────────
+const MOCK_D4_DATA = {
+  _id: "mock_d4_123",
+  title: { text: "ĐỀ THI THỬ D4 TIẾNG TRUNG MẪU" },
+  type: "D4",
+  time: 60,
+  numberOfQuestions: 10,
+  access: "PUBLIC",
+  audioUrl: "",
+  skillTimes: { listening: 0, reading: 60, writing: 0 },
+  questions: [
+    {
+      question: "Bài đọc 1",
+      type: "DL",
+      section: "READING",
+      contentQuestions:
+        "（一）\n\n中国是一个历史悠久的国家，拥有五千年的文明史。中国的传统文化博大精深，包括儒家思想、道家哲学、佛教文化等多种思想流派。\n\n中国的饮食文化举世闻名。各地的美食各具特色，如北京的烤鸭、四川的火锅、广东的早茶等都是中国饮食文化的重要组成部分。中国人非常重视饮食，认为\"民以食为天\"，意思是吃饭是老百姓最重要的事情。\n\n除了饮食之外，中国的传统节日也是文化的重要体现。春节是中国最重要的传统节日，人们会回家与家人团聚，一起吃年夜饭，放鞭炮，贴春联，互相祝福新年快乐。中秋节时，人们会赏月，吃月饼，象征团圆和美满。\n\n中国的书法和绘画艺术也有着悠久的历史。毛笔书法被认为是中国文化的重要象征之一，练习书法不仅能提高审美能力，还能培养人的耐心和专注力。\n\n在现代中国，经济的快速发展带来了人们生活水平的显著提高。越来越多的年轻人走出国门，去世界各地学习和工作，同时也把中国文化带到了世界各个角落。中国的文化输出，包括电影、音乐、美食，正在全球范围内产生越来越大的影响力。",
+      subQuestions: [
+        {
+          question: "Câu 1",
+          contentQuestions: "中国有多少年的文明史？",
+          contentAnswerA: "三千年",
+          contentAnswerB: "四千年",
+          contentAnswerC: "五千年",
+          contentAnswerD: "六千年",
+          correctAnswer: "C",
+        },
+        {
+          question: "Câu 2",
+          contentQuestions: "下列哪项不属于中国传统文化思想流派？",
+          contentAnswerA: "儒家思想",
+          contentAnswerB: "道家哲学",
+          contentAnswerC: "神道教",
+          contentAnswerD: "佛教文化",
+          correctAnswer: "C",
+        },
+        {
+          question: "Câu 3",
+          contentQuestions: "北京有名的传统食物是什么？",
+          contentAnswerA: "火锅",
+          contentAnswerB: "早茶",
+          contentAnswerC: "烤鸭",
+          contentAnswerD: "月饼",
+          correctAnswer: "C",
+        },
+        {
+          question: "Câu 4",
+          contentQuestions: "\"民以食为天\"这句话的意思是什么？",
+          contentAnswerA: "天空是人民的食物",
+          contentAnswerB: "人民喜欢吃东西",
+          contentAnswerC: "饮食对老百姓来说最重要",
+          contentAnswerD: "老百姓在天上吃饭",
+          correctAnswer: "C",
+        },
+        {
+          question: "Câu 5",
+          contentQuestions: "中国最重要的传统节日是什么？",
+          contentAnswerA: "中秋节",
+          contentAnswerB: "清明节",
+          contentAnswerC: "端午节",
+          contentAnswerD: "春节",
+          correctAnswer: "D",
+        },
+        {
+          question: "Câu 6",
+          contentQuestions: "春节期间，人们通常不会做什么活动？",
+          contentAnswerA: "回家与家人团聚",
+          contentAnswerB: "吃年夜饭",
+          contentAnswerC: "在海边游泳",
+          contentAnswerD: "放鞭炮",
+          correctAnswer: "C",
+        },
+        {
+          question: "Câu 7",
+          contentQuestions: "中秋节时，人们吃什么食物来象征团圆？",
+          contentAnswerA: "饺子",
+          contentAnswerB: "粽子",
+          contentAnswerC: "汤圆",
+          contentAnswerD: "月饼",
+          correctAnswer: "D",
+        },
+        {
+          question: "Câu 8",
+          contentQuestions: "练习书法有哪些好处？",
+          contentAnswerA: "能提高计算能力",
+          contentAnswerB: "能提高审美能力并培养耐心和专注力",
+          contentAnswerC: "能增强体力",
+          contentAnswerD: "能快速学习外语",
+          correctAnswer: "B",
+        },
+        {
+          question: "Câu 9",
+          contentQuestions: "毛笔书法被认为是什么的重要象征？",
+          contentAnswerA: "中国经济",
+          contentAnswerB: "中国军事",
+          contentAnswerC: "中国文化",
+          contentAnswerD: "中国科技",
+          correctAnswer: "C",
+        },
+        {
+          question: "Câu 10",
+          contentQuestions: "这篇文章最主要介绍的是什么？",
+          contentAnswerA: "中国的经济发展",
+          contentAnswerB: "中国的传统文化",
+          contentAnswerC: "中国的地理环境",
+          contentAnswerD: "中国的政治制度",
+          correctAnswer: "B",
+        },
+      ],
+    },
+  ],
+};
+
 const ExamTestPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -53,7 +166,7 @@ const ExamTestPage = () => {
   const selectedSectionsParam = searchParams.get("sections");
   const modeParam = searchParams.get("mode"); // Extract mode: 'testing' or 'training'
   const timeParam = searchParams.get("time"); // Custom time for training mode
-  
+
   // For preventing audio seeking in testing mode
   const [lastAudioTime, setLastAudioTime] = useState(0);
 
@@ -61,6 +174,12 @@ const ExamTestPage = () => {
   const handleFetch = async () => {
     try {
       setLoading(true);
+      // Use mock data for D4 exam when server is offline
+      if (id === "mock_d4_123") {
+        setExamData(MOCK_D4_DATA);
+        setLoading(false);
+        return;
+      }
       const responseExam = await getExamDetail(id);
       const data = responseExam?.data;
       if (data) {
@@ -68,9 +187,9 @@ const ExamTestPage = () => {
         const audioUrl = data?.audioUrl && !data.audioUrl.startsWith("http")
           ? `${process.env.REACT_APP_API_BASE_URL?.replace("/api/v2", "") || "http://localhost:4000"}${data.audioUrl}`
           : data?.audioUrl;
-        
+
         const normalizedData = { ...data, audioUrl };
-        
+
         if (selectedSectionsParam) {
           const sectionsToKeep = selectedSectionsParam.split(",");
           const filteredQuestions = normalizedData.questions.filter((q) =>
@@ -101,14 +220,14 @@ const ExamTestPage = () => {
       const existingSession = sessionStorage.getItem("exam");
       if (!existingSession) {
         const trainingTime = modeParam === "training" ? (timeParam ? parseInt(timeParam, 10) : 0) : examData.time;
-      const init = {
-        _id: examData._id,
-        time: trainingTime,
-        skillTimes: modeParam === "testing" ? (examData.skillTimes || { listening: 0, reading: 0, writing: 0 }) : { listening: 0, reading: 0, writing: 0 },
-        start: moment(new Date()),
-        currentSection: "LISTENING", // Start with first section
-        sectionStartTime: moment(new Date()), // Track when current section started
-      };
+        const init = {
+          _id: examData._id,
+          time: trainingTime,
+          skillTimes: modeParam === "testing" ? (examData.skillTimes || { listening: 0, reading: 0, writing: 0 }) : { listening: 0, reading: 0, writing: 0 },
+          start: moment(new Date()),
+          currentSection: "LISTENING", // Start with first section
+          sectionStartTime: moment(new Date()), // Track when current section started
+        };
         sessionStorage.setItem(SESSION_EXAM_KEY, JSON.stringify(init));
         setSessionExam(init);
       }
@@ -147,10 +266,19 @@ const ExamTestPage = () => {
     return sections[currentSection] || [];
   }, [sections, currentSection]);
 
-  // complete flattened list in original order
+  // complete flattened list in original order — DL questions expanded to their sub-questions
   const allQuestions = useMemo(() => {
     if (!examData) return [];
-    return examData.questions.filter((q) => q.type !== "MQ");
+    const flat = [];
+    examData.questions.forEach((q) => {
+      if (q.type === "MQ") return;
+      if (q.type === "DL" && Array.isArray(q.subQuestions)) {
+        flat.push(...q.subQuestions);
+      } else {
+        flat.push(q);
+      }
+    });
+    return flat;
   }, [examData]);
 
   // Determine which sections should show in the tab bar
@@ -177,21 +305,28 @@ const ExamTestPage = () => {
   const isSectionComplete = (section) => {
     const questionsInSection = sections[section] || [];
     if (questionsInSection.length === 0) return true;
-    return questionsInSection.every((q) => answers[q.question] !== undefined && answers[q.question] !== "");
+    return questionsInSection.every((q) => {
+      if (q.type === "DL" && Array.isArray(q.subQuestions)) {
+        return q.subQuestions.every(
+          (sq) => answers[sq.question] !== undefined && answers[sq.question] !== ""
+        );
+      }
+      return answers[q.question] !== undefined && answers[q.question] !== "";
+    });
   };
 
   // Helper: Check if a section can be accessed in testing mode
   const canAccessSection = (section) => {
     if (modeParam !== "testing") return true; // All sections accessible in training mode
-    
+
     const sectionOrder = getSectionOrder();
     const currentIndex = sectionOrder.indexOf(section);
-    
+
     // Can't go back to previous sections
     if (currentIndex < sectionOrder.indexOf(currentSection)) {
       return false;
     }
-    
+
     // Can only access if previous sections are completed
     for (let i = 0; i < currentIndex; i++) {
       const prevSection = sectionOrder[i];
@@ -199,7 +334,7 @@ const ExamTestPage = () => {
         return false;
       }
     }
-    
+
     return true;
   };
 
@@ -210,12 +345,12 @@ const ExamTestPage = () => {
       const sectionOrder = getSectionOrder();
       const currentIndex = sectionOrder.indexOf(currentSection);
       const newIndex = sectionOrder.indexOf(newSection);
-      
+
       if (newIndex < currentIndex) {
         toast.error("Bạn không thể quay lại phần thi trước");
         return;
       }
-      
+
       // Can only access if previous sections are completed
       for (let i = 0; i < currentIndex; i++) {
         const prevSection = sectionOrder[i];
@@ -263,7 +398,7 @@ const ExamTestPage = () => {
   const handleSectionTimeout = () => {
     const sectionOrder = getSectionOrder();
     const currentIndex = sectionOrder.indexOf(currentSection);
-    
+
     if (currentIndex < sectionOrder.length - 1) {
       const nextSection = sectionOrder[currentIndex + 1];
       toast.warning(`⏰ Hết thời gian phần ${currentSection === 'LISTENING' ? 'Nghe' : currentSection === 'READING' ? 'Đọc' : 'Viết'}! Chuyển sang phần tiếp theo.`);
@@ -277,8 +412,16 @@ const ExamTestPage = () => {
   // Find first unanswered question in current section
   const findFirstUnansweredQuestion = () => {
     for (const q of sectionQuestionList) {
-      if (answers[q.question] === undefined || answers[q.question] === '' || 
-          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+      if (q.type === "DL" && Array.isArray(q.subQuestions)) {
+        for (const sq of q.subQuestions) {
+          if (answers[sq.question] === undefined || answers[sq.question] === "") {
+            return sq;
+          }
+        }
+        continue;
+      }
+      if (answers[q.question] === undefined || answers[q.question] === '' ||
+        (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
         return q;
       }
     }
@@ -365,8 +508,8 @@ const ExamTestPage = () => {
     // Final check: ensure all questions are answered unless forced timeout submit
     if (!force) {
       for (const q of allQuestions) {
-        if (answers[q.question] === undefined || answers[q.question] === '' || 
-            (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+        if (answers[q.question] === undefined || answers[q.question] === '' ||
+          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
           toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi nộp bài");
           setShowSubmitModal(false);
           return;
@@ -416,8 +559,8 @@ const ExamTestPage = () => {
   const handleSubmit = () => {
     // Check if all questions in the entire exam are answered
     for (const q of allQuestions) {
-      if (answers[q.question] === undefined || answers[q.question] === '' || 
-          (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
+      if (answers[q.question] === undefined || answers[q.question] === '' ||
+        (Array.isArray(answers[q.question]) && answers[q.question].length === 0)) {
         toast.error("Vui lòng hoàn thành tất cả các câu hỏi trước khi nộp bài");
         // Scroll to unanswered question and navigate to that section
         const el = document.getElementById(q.question);
@@ -497,8 +640,8 @@ const ExamTestPage = () => {
                 <button
                   key={idx}
                   onClick={() => {
-                    const newArrangement = Array.isArray(currentArrangement) 
-                      ? [...currentArrangement] 
+                    const newArrangement = Array.isArray(currentArrangement)
+                      ? [...currentArrangement]
                       : [];
                     if (isSelected) {
                       // Unselect: remove from arrangement
@@ -512,11 +655,10 @@ const ExamTestPage = () => {
                       handleAnswerChange(answerKey, newArrangement);
                     }
                   }}
-                  className={`px-4 py-2 rounded-lg font-semibold border-2 transition-all ${
-                    isSelected
+                  className={`px-4 py-2 rounded-lg font-semibold border-2 transition-all ${isSelected
                       ? "bg-red-100 border-red-500 text-red-700"
                       : "bg-white border-gray-300 text-gray-800 hover:border-red-400"
-                  }`}
+                    }`}
                 >
                   {part}
                 </button>
@@ -768,7 +910,7 @@ const ExamTestPage = () => {
           <span>Chế độ kiểm tra - Bạn phải hoàn thành từng phần theo thứ tự</span>
         </div>
       )}
-      
+
       <div className="flex-1 max-w-[1920px] mx-auto w-full p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-8">
         {/* LEFT COLUMN: Question Area */}
         <div className="flex-1 w-full lg:min-w-0">
@@ -788,11 +930,11 @@ const ExamTestPage = () => {
                         onClick={() => handleSectionChange(sec)}
                         disabled={!isAccessible && modeParam === "testing"}
                         className={`px-4 py-2 rounded-lg font-semibold transition-colors relative
-                          ${currentSection === sec 
-                            ? 'bg-red-600 text-white' 
+                          ${currentSection === sec
+                            ? 'bg-red-600 text-white'
                             : isAccessible
-                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                              ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
                           }`}
                         title={!isAccessible && modeParam === "testing" ? "Phần này chưa có thể truy cập" : ""}
                       >
@@ -812,10 +954,10 @@ const ExamTestPage = () => {
               {currentSection === 'LISTENING' && examData?.audioUrl && (
                 <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                   <p className="text-sm font-semibold text-blue-900 mb-3">🔊 Nghe audio và điền đáp án:</p>
-                  <audio 
+                  <audio
 
-                    controls 
-                    className="w-full" 
+                    controls
+                    className="w-full"
                     key={examData.audioUrl}
                     controlsList="nodownload"
                     onLoadedMetadata={handleAudioLoadedMetadata}
@@ -843,7 +985,67 @@ const ExamTestPage = () => {
                     let i = 0;
                     while (i < sectionQuestionList.length) {
                       const q = sectionQuestionList[i];
-                      if (q.type === "MT" && q.matchGroup) {
+
+                      // ── DL (Gap Filling) : split-view passage + 10 sub-questions ──
+                      if (q.type === "DL" && Array.isArray(q.subQuestions)) {
+                        const dlStartIdx = allQuestions.indexOf(q.subQuestions[0]);
+                        const dlStartNum = dlStartIdx + 1;
+                        const dlEndNum = dlStartIdx + q.subQuestions.length;
+                        rendered.push(
+                          <div key={q.question} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                            <div className="flex flex-col lg:flex-row" style={{ height: "78vh" }}>
+                              {/* LEFT — Reading Passage (sticky scroll) */}
+                              <div className="w-full lg:w-1/2 bg-blue-50 border-r border-gray-200 p-6 overflow-y-auto">
+                                <p className="text-xs font-bold uppercase text-red-600 tracking-wide mb-4 flex items-center gap-1">
+                                  Bài đọc ({dlStartNum}–{dlEndNum})
+                                </p>
+                                <div className="text-gray-800 leading-relaxed whitespace-pre-wrap text-base font-medium">
+                                  {q.contentQuestions}
+                                </div>
+                              </div>
+                              {/* RIGHT — Sub-questions */}
+                              <div className="w-full lg:w-1/2 p-6 overflow-y-auto space-y-5 bg-white">
+                            
+                                {q.subQuestions.map((sq) => (
+                                  <div key={sq.question} id={sq.question} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                                    <div className="flex items-start gap-2 mb-3">
+                                      <span className="font-bold text-red-600 flex-shrink-0 text-base">{sq.question}.</span>
+                                      <span className="text-gray-800 text-base leading-relaxed">{sq.contentQuestions}</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {["A", "B", "C", "D"].map((opt) => {
+                                        const optContent = sq[`contentAnswer${opt}`];
+                                        if (!optContent) return null;
+                                        const isChecked = answers[sq.question] === opt;
+                                        return (
+                                          <div
+                                            key={opt}
+                                            onClick={() => handleAnswerChange(sq.question, opt)}
+                                            className={`cursor-pointer p-3 rounded-xl border-2 flex items-center gap-3 transition-all duration-200 ${isChecked
+                                                ? "border-red-500 bg-red-50/80 shadow-sm"
+                                                : "border-gray-100 bg-white hover:border-red-200 hover:bg-red-50/30"
+                                              }`}
+                                          >
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? "bg-red-500 border-red-500" : "border-gray-300"
+                                              }`}>
+                                              {isChecked && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                            </div>
+                                            <span className={`text-sm ${isChecked ? "text-red-900 font-semibold" : "text-gray-700"}`}>
+                                              <span className="font-bold mr-1 text-red-600">{opt}.</span>
+                                              {optContent}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                        i++;
+                      } else if (q.type === "MT" && q.matchGroup) {
                         // Collect the whole group
                         const group = [q];
                         let j = i + 1;
@@ -889,7 +1091,7 @@ const ExamTestPage = () => {
                                   )}
                                 </div>
 
-                             {/* RIGHT: Propositions + answer inputs */}
+                                {/* RIGHT: Propositions + answer inputs */}
                                 <div className="p-6 h-full gap-2 text-base">
                                   {showOptionList && (
                                     <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-white">
@@ -920,11 +1122,10 @@ const ExamTestPage = () => {
                                           <input
                                             type="text"
                                             maxLength={1}
-                                            className={`border-2 rounded-lg p-1 w-20 text-center font-bold uppercase text-base transition-colors ${
-                                              answers[subQ.question]
+                                            className={`border-2 rounded-lg p-1 w-20 text-center font-bold uppercase text-base transition-colors ${answers[subQ.question]
                                                 ? "border-red-500 bg-red-50 text-red-700"
                                                 : "border-gray-300 focus:border-red-500"
-                                            } focus:outline-none`}
+                                              } focus:outline-none`}
                                             placeholder="A-F"
                                             value={
                                               typeof answers[subQ.question] === "string"
@@ -985,11 +1186,10 @@ const ExamTestPage = () => {
                                       <input
                                         type="text"
                                         maxLength={1}
-                                        className={`border-2 rounded-lg p-2 w-24 text-center font-extrabold uppercase text-base transition-colors ${
-                                          answers[subQ.question]
+                                        className={`border-2 rounded-lg p-2 w-24 text-center font-extrabold uppercase text-base transition-colors ${answers[subQ.question]
                                             ? "border-red-500 bg-red-50 text-red-700"
                                             : "border-gray-300 focus:border-red-500"
-                                        } focus:outline-none`}
+                                          } focus:outline-none`}
                                         placeholder="A-F"
                                         value={typeof answers[subQ.question] === "string" ? answers[subQ.question] : ""}
                                         onChange={(e) => handleAnswerChange(subQ.question, e.target.value.toUpperCase())}
@@ -1014,10 +1214,11 @@ const ExamTestPage = () => {
                           );
                           i++;
                         } else {
+                          const globalNum = allQuestions.indexOf(q) + 1;
                           rendered.push(
                             <div key={i} id={q.question} className="p-4 border rounded-lg">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-xl md:text-2xl font-bold text-red-600">{q.question}</span>
+                                <span className="text-xl md:text-2xl font-bold text-red-600">{globalNum > 0 ? `Câu ${globalNum}` : q.question}</span>
                               </div>
                               {q.imageUrl && (
                                 <div className="mb-3 flex justify-center">
