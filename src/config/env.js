@@ -1,10 +1,12 @@
 // Config for different environments
 const config = {
   development: {
-    REACT_APP_API_BASE_URL: "https://backend.tiengtrung86hsk.com/api/v2",
+    REACT_APP_API_BASE_URL:
+      process.env.REACT_APP_API_BASE_URL || "http://localhost:4000/api/v2",
   },
   production: {
-    REACT_APP_API_BASE_URL: "https://backend.tiengtrung86hsk.com/api/v2",
+    REACT_APP_API_BASE_URL:
+      process.env.REACT_APP_API_BASE_URL || "https://backend.tiengtrung86hsk.com",
   },
 };
 
